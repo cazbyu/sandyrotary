@@ -1,7 +1,8 @@
 import { ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Flame, Settings, ArrowLeft } from 'lucide-react';
+import { Flame, Settings, ArrowLeft, LogOut } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 
 interface LayoutProps {
   children: ReactNode;
@@ -27,6 +28,11 @@ export function Layout({ children, showHeader = true, showBackButton = false, ba
     }
   };
 
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    navigate('/login');
+  };
+
   return (
     <div className="min-h-screen bg-[#F5F7FA]">
       <header className="bg-[#1B2A4A] rounded-b-3xl shadow-lg pb-8">
@@ -49,12 +55,23 @@ export function Layout({ children, showHeader = true, showBackButton = false, ba
               </h1>
             )}
 
-            <Link
-              to="/settings"
-              className="w-12 h-12 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors"
-            >
-              <Settings className="w-6 h-6 text-white" />
-            </Link>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleSignOut}
+                className="w-12 h-12 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors"
+                title="Sign Out"
+              >
+                <LogOut className="w-6 h-6 text-white" />
+              </button>
+
+              <Link
+                to="/settings"
+                className="w-12 h-12 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors"
+                title="Settings"
+              >
+                <Settings className="w-6 h-6 text-white" />
+              </Link>
+            </div>
           </div>
 
           {!title && (
