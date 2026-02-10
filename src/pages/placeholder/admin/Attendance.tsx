@@ -1,376 +1,280 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ChevronRight, Download } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Layout } from '../../../components/Layout';
-import { supabase } from '../../../lib/supabase';
-import { getAttendanceStatus } from '../../../lib/attendanceUtils';
+import { supabase, Member } from '../../../lib/supabase';
+import { useAuth } from '../../../contexts/AuthContext';
 
-interface Meeting {
-  id: string;
-  event_name: string;
-  start_date: string;
+function getStartWednesday(): Date {
+  const now = new Date();
+  now.setHours(12, 0, 0, 0);
+  const day = now.getDay();
+  const offset = day <= 3 ? 3 - day : 10 - day;
+  now.setDate(now.getDate() + offset);
+  return now;
+}
+
+function generateWednesdays(start: Date, count: number): Date[] {
+  const result: Date[] = [];
+  for (let i = 0; i < count; i++) {
+    const d = new Date(start);
+    d.setDate(d.getDate() + i * 7);
+    d.setHours(12, 0, 0, 0);
+    result.push(d);
+  }
+  return result;
+}
+
+function isFourthWednesday(date: Date): boolean {
+  return date.getDay() === 3 && Math.ceil(date.getDate() / 7) === 4;
+}
+
+function toDateString(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function isPastMeeting(date: Date): boolean {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const meetingDay = new Date(date);
+  meetingDay.setHours(0, 0, 0, 0);
+  return today > meetingDay;
+}
+
+function formatColumnDate(date: Date): string {
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+interface AttendancePlan {
+  member_id: string;
+  meeting_date: string;
+  is_attending: boolean;
 }
 
 interface AttendanceRecord {
-  id: string;
-  rsvp_status: string;
-  actually_attended: boolean | null;
-  member: {
-    id: string;
-    first_name: string;
-    last_name: string;
-    profile_photo_url?: string;
-    member_status: string;
-  };
+  member_id: string;
+  meeting_date: string;
+  status: 'attended' | 'busy' | 'no_show';
 }
+
+type CellStatus = 'attending' | 'busy' | 'attended' | 'no_show' | 'social' | null;
 
 export function Attendance() {
   const navigate = useNavigate();
+  const { member: currentUser } = useAuth();
+  const [windowStart, setWindowStart] = useState<Date>(getStartWednesday);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [plans, setPlans] = useState<Record<string, AttendancePlan[]>>({});
+  const [records, setRecords] = useState<Record<string, AttendanceRecord[]>>({});
   const [loading, setLoading] = useState(true);
-  const [meetings, setMeetings] = useState<Meeting[]>([]);
-  const [selectedMeeting, setSelectedMeeting] = useState<Meeting | null>(null);
-  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
-  const [showFilter, setShowFilter] = useState<'all' | 'no-shows'>('all');
+  const [updating, setUpdating] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadMeetings();
-  }, []);
+  const wednesdays = generateWednesdays(windowStart, 4);
 
-  useEffect(() => {
-    if (selectedMeeting) {
-      loadAttendanceForMeeting(selectedMeeting.id);
-    }
-  }, [selectedMeeting]);
-
-  const loadMeetings = async () => {
+  const loadData = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from('0012-sr-calendar-events')
-        .select('id, event_name, start_date')
-        .eq('category', 'Club Meeting')
-        .eq('status', 'Active')
-        .order('start_date', { ascending: false });
+      const [membersRes, plansRes, recordsRes] = await Promise.all([
+        supabase
+          .from('0012-sr-members')
+          .select('*')
+          .eq('member_status', 'Active')
+          .order('last_name', { ascending: true }),
+        supabase
+          .from('0012-sr-attendance-plans')
+          .select('member_id, meeting_date, is_attending')
+          .in('meeting_date', wednesdays.map(toDateString)),
+        supabase
+          .from('0012-sr-attendance-records')
+          .select('member_id, meeting_date, status')
+          .in('meeting_date', wednesdays.map(toDateString)),
+      ]);
 
-      if (error) throw error;
+      if (membersRes.error) throw membersRes.error;
+      if (plansRes.error) throw plansRes.error;
+      if (recordsRes.error) throw recordsRes.error;
 
-      setMeetings(data || []);
+      setMembers(membersRes.data || []);
+
+      const plansMap: Record<string, AttendancePlan[]> = {};
+      (plansRes.data || []).forEach((p: AttendancePlan) => {
+        if (!plansMap[p.meeting_date]) plansMap[p.meeting_date] = [];
+        plansMap[p.meeting_date].push(p);
+      });
+      setPlans(plansMap);
+
+      const recordsMap: Record<string, AttendanceRecord[]> = {};
+      (recordsRes.data || []).forEach((r: AttendanceRecord) => {
+        if (!recordsMap[r.meeting_date]) recordsMap[r.meeting_date] = [];
+        recordsMap[r.meeting_date].push(r);
+      });
+      setRecords(recordsMap);
     } catch (error) {
-      console.error('Error loading meetings:', error);
+      console.error('Error loading data:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [windowStart]);
 
-  const loadAttendanceForMeeting = async (eventId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('0012-sr-meeting-attendance')
-        .select(`
-          id,
-          rsvp_status,
-          actually_attended,
-          member:member_id (
-            id,
-            first_name,
-            last_name,
-            profile_photo_url,
-            member_status
-          )
-        `)
-        .eq('event_id', eventId);
+  useEffect(() => {
+    setLoading(true);
+    loadData();
+  }, [loadData]);
 
-      if (error) throw error;
+  const getCellStatus = (memberId: string, date: Date): CellStatus => {
+    if (isFourthWednesday(date)) return 'social';
 
-      setAttendanceRecords((data || []) as unknown as AttendanceRecord[]);
-    } catch (error) {
-      console.error('Error loading attendance:', error);
+    const dateStr = toDateString(date);
+    const isPast = isPastMeeting(date);
+
+    if (isPast) {
+      const record = records[dateStr]?.find((r) => r.member_id === memberId);
+      if (record) return record.status;
+
+      const plan = plans[dateStr]?.find((p) => p.member_id === memberId);
+      if (plan && !plan.is_attending) return 'busy';
+
+      return null;
+    } else {
+      const plan = plans[dateStr]?.find((p) => p.member_id === memberId);
+      return plan ? (plan.is_attending ? 'attending' : 'busy') : 'attending';
     }
   };
 
-  const markAttendance = async (attendanceId: string, attended: boolean) => {
+  const updateAttendance = async (memberId: string, date: Date, status: 'attended' | 'busy' | 'no_show') => {
+    if (!currentUser) return;
+
+    const dateStr = toDateString(date);
+    const key = `${memberId}-${dateStr}`;
+    setUpdating(key);
+
     try {
       const { error } = await supabase
-        .from('0012-sr-meeting-attendance')
-        .update({
-          actually_attended: attended,
-          marked_at: new Date().toISOString(),
-        })
-        .eq('id', attendanceId);
+        .from('0012-sr-attendance-records')
+        .upsert(
+          {
+            member_id: memberId,
+            meeting_date: dateStr,
+            status,
+            marked_by: currentUser.id,
+            marked_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'member_id,meeting_date' }
+        );
 
       if (error) throw error;
 
-      if (selectedMeeting) {
-        await loadAttendanceForMeeting(selectedMeeting.id);
-      }
+      await loadData();
     } catch (error) {
-      console.error('Error marking attendance:', error);
+      console.error('Error updating attendance:', error);
+    } finally {
+      setUpdating(null);
     }
   };
 
-  const markAllPresent = async () => {
-    if (!selectedMeeting) return;
+  const navigateWeeks = (direction: number) => {
+    const newStart = new Date(windowStart);
+    newStart.setDate(newStart.getDate() + direction * 28);
+    setWindowStart(newStart);
+  };
 
-    const attendingRecords = attendanceRecords.filter(
-      (r) => r.rsvp_status === 'attending'
-    );
+  const getColumnTotals = (date: Date): { attended: number; busy: number; noShow: number } => {
+    if (isFourthWednesday(date)) return { attended: 0, busy: 0, noShow: 0 };
 
-    try {
-      await Promise.all(
-        attendingRecords.map((record) =>
-          supabase
-            .from('0012-sr-meeting-attendance')
-            .update({
-              actually_attended: true,
-              marked_at: new Date().toISOString(),
-            })
-            .eq('id', record.id)
-        )
+    let attended = 0;
+    let busy = 0;
+    let noShow = 0;
+
+    members.forEach((member) => {
+      const status = getCellStatus(member.id, date);
+      if (status === 'attended') attended++;
+      else if (status === 'busy') busy++;
+      else if (status === 'no_show') noShow++;
+    });
+
+    return { attended, busy, noShow };
+  };
+
+  const renderCell = (member: Member, date: Date) => {
+    const status = getCellStatus(member.id, date);
+    const dateStr = toDateString(date);
+    const isPast = isPastMeeting(date);
+    const key = `${member.id}-${dateStr}`;
+    const isUpdating = updating === key;
+
+    if (status === 'social') {
+      return (
+        <div className="h-full flex items-center justify-center bg-gray-100 text-gray-400 text-xs italic">
+          Social
+        </div>
       );
-
-      await loadAttendanceForMeeting(selectedMeeting.id);
-    } catch (error) {
-      console.error('Error marking all present:', error);
     }
-  };
 
-  const exportReport = () => {
-    if (!selectedMeeting) return;
-
-    const csvRows = [
-      ['Name', 'RSVP Status', 'Actually Attended', 'Status'],
-      ...attendanceRecords.map((record) => {
-        const status = getAttendanceStatus(
-          record.rsvp_status,
-          record.actually_attended,
-          new Date(selectedMeeting.start_date),
-          true
-        );
-        return [
-          `${record.member.first_name} ${record.member.last_name}`,
-          record.rsvp_status,
-          record.actually_attended === null ? 'N/A' : record.actually_attended ? 'Yes' : 'No',
-          status.label,
-        ];
-      }),
-    ];
-
-    const csvContent = csvRows.map((row) => row.join(',')).join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `attendance-${selectedMeeting.event_name.replace(/\s+/g, '-')}.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
-  };
-
-  const getStats = () => {
-    const attended = attendanceRecords.filter((r) => r.actually_attended === true).length;
-    const optedOut = attendanceRecords.filter((r) => r.rsvp_status === 'not_attending').length;
-    const noShows = attendanceRecords.filter(
-      (r) => r.rsvp_status === 'attending' && r.actually_attended === false
-    ).length;
-    const total = attendanceRecords.length;
-
-    return { attended, optedOut, noShows, total };
-  };
-
-  const filteredRecords =
-    showFilter === 'no-shows'
-      ? attendanceRecords.filter(
-          (r) => r.rsvp_status === 'attending' && r.actually_attended === false
-        )
-      : attendanceRecords;
-
-  if (loading) {
-    return (
-      <Layout showHeader={false}>
-        <div className="min-h-screen bg-[#F5F7FA]">
-          <div className="bg-[#1B2A4A] px-4 py-4 flex items-center gap-4">
-            <button
-              onClick={() => navigate(-1)}
-              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10"
-            >
-              <ArrowLeft className="w-6 h-6 text-white" />
-            </button>
-            <h1 className="text-xl font-bold text-white flex-1">Attendance</h1>
-          </div>
-          <div className="flex items-center justify-center py-12">
-            <div className="text-center">
-              <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#1B2A4A]"></div>
-              <p className="mt-4 text-gray-600">Loading meetings...</p>
-            </div>
-          </div>
+    if (!isPast) {
+      const isAttending = status === 'attending';
+      return (
+        <div
+          className={`h-full flex items-center justify-center text-xs font-medium ${
+            isAttending ? 'bg-green-50 text-green-700' : 'bg-gray-50 text-gray-500'
+          }`}
+        >
+          {isAttending ? 'Attending' : 'Busy'}
         </div>
-      </Layout>
-    );
-  }
+      );
+    }
 
-  if (selectedMeeting) {
-    const stats = getStats();
+    if (isUpdating) {
+      return (
+        <div className="h-full flex items-center justify-center">
+          <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-[#1B2A4A]" />
+        </div>
+      );
+    }
 
     return (
-      <Layout showHeader={false}>
-        <div className="min-h-screen bg-[#F5F7FA]">
-          <div className="bg-[#1B2A4A] px-4 py-4 flex items-center gap-4">
-            <button
-              onClick={() => setSelectedMeeting(null)}
-              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10"
-            >
-              <ArrowLeft className="w-6 h-6 text-white" />
-            </button>
-            <div className="flex-1">
-              <h1 className="text-xl font-bold text-white">{selectedMeeting.event_name}</h1>
-              <p className="text-white/80 text-sm">
-                {new Date(selectedMeeting.start_date).toLocaleDateString('en-US', {
-                  weekday: 'long',
-                  month: 'long',
-                  day: 'numeric',
-                  year: 'numeric',
-                })}
-              </p>
-            </div>
-          </div>
-
-          <div className="bg-white p-4 shadow-sm">
-            <div className="grid grid-cols-4 gap-3 mb-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">{stats.attended}</div>
-                <div className="text-xs text-gray-600">Attended</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-gray-600">{stats.optedOut}</div>
-                <div className="text-xs text-gray-600">Busy</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-red-600">{stats.noShows}</div>
-                <div className="text-xs text-gray-600">No-Shows</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-[#1B2A4A]">{stats.total}</div>
-                <div className="text-xs text-gray-600">Total</div>
-              </div>
-            </div>
-
-            <div className="flex gap-2">
-              <button
-                onClick={markAllPresent}
-                className="flex-1 py-2 px-4 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 transition-colors text-sm"
-              >
-                Mark All Present
-              </button>
-              <button
-                onClick={exportReport}
-                className="py-2 px-4 bg-[#1B2A4A] text-white font-semibold rounded-lg hover:bg-[#1B2A4A]/90 transition-colors flex items-center gap-2 text-sm"
-              >
-                <Download className="w-4 h-4" />
-                Export
-              </button>
-            </div>
-          </div>
-
-          <div className="flex border-b border-gray-200 bg-white sticky top-0 z-10 shadow-sm">
-            <button
-              onClick={() => setShowFilter('all')}
-              className={`flex-1 py-3 text-center font-semibold transition-colors ${
-                showFilter === 'all'
-                  ? 'text-[#1B2A4A] border-b-2 border-[#D94F4F]'
-                  : 'text-gray-500'
-              }`}
-            >
-              All Members
-            </button>
-            <button
-              onClick={() => setShowFilter('no-shows')}
-              className={`flex-1 py-3 text-center font-semibold transition-colors ${
-                showFilter === 'no-shows'
-                  ? 'text-[#1B2A4A] border-b-2 border-[#D94F4F]'
-                  : 'text-gray-500'
-              }`}
-            >
-              No-Shows ({stats.noShows})
-            </button>
-          </div>
-
-          <div className="p-4 space-y-2">
-            {filteredRecords.length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-gray-600">
-                  {showFilter === 'no-shows' ? 'No no-shows found' : 'No attendance records found'}
-                </p>
-              </div>
-            ) : (
-              filteredRecords.map((record) => {
-                const status = getAttendanceStatus(
-                  record.rsvp_status,
-                  record.actually_attended,
-                  new Date(selectedMeeting.start_date)
-                );
-
-                return (
-                  <div
-                    key={record.id}
-                    className="bg-white rounded-xl shadow-sm p-4 flex items-center gap-4"
-                  >
-                    <div className="w-12 h-12 rounded-full bg-gray-200 flex-shrink-0 overflow-hidden">
-                      {record.member.profile_photo_url ? (
-                        <img
-                          src={record.member.profile_photo_url}
-                          alt={record.member.first_name}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-gray-600 font-semibold">
-                          {record.member.first_name[0]}
-                          {record.member.last_name[0]}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-gray-800">
-                        {record.member.first_name} {record.member.last_name}
-                      </h3>
-                      <span
-                        className={`inline-block px-2 py-1 rounded-full text-xs font-semibold text-white ${status.color} mt-1`}
-                      >
-                        {status.icon} {status.label}
-                      </span>
-                    </div>
-
-                    {record.rsvp_status === 'attending' && (
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => markAttendance(record.id, true)}
-                          className={`w-12 h-12 rounded-lg flex items-center justify-center transition-colors ${
-                            record.actually_attended === true
-                              ? 'bg-green-500 text-white'
-                              : 'bg-gray-200 text-gray-600 hover:bg-green-100'
-                          }`}
-                        >
-                          ✓
-                        </button>
-                        <button
-                          onClick={() => markAttendance(record.id, false)}
-                          className={`w-12 h-12 rounded-lg flex items-center justify-center transition-colors ${
-                            record.actually_attended === false
-                              ? 'bg-red-500 text-white'
-                              : 'bg-gray-200 text-gray-600 hover:bg-red-100'
-                          }`}
-                        >
-                          ✗
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-      </Layout>
+      <div className="h-full flex items-center justify-center gap-1">
+        <button
+          onClick={() => updateAttendance(member.id, date, 'attended')}
+          className={`w-8 h-8 rounded flex items-center justify-center transition-colors ${
+            status === 'attended'
+              ? 'bg-green-500 text-white'
+              : 'bg-gray-100 hover:bg-green-100 text-gray-400'
+          }`}
+          title="Attended"
+        >
+          ✓
+        </button>
+        <button
+          onClick={() => updateAttendance(member.id, date, 'busy')}
+          className={`w-8 h-8 rounded flex items-center justify-center transition-colors ${
+            status === 'busy'
+              ? 'bg-yellow-500 text-white'
+              : 'bg-gray-100 hover:bg-yellow-100 text-gray-400'
+          }`}
+          title="Busy"
+        >
+          ○
+        </button>
+        <button
+          onClick={() => updateAttendance(member.id, date, 'no_show')}
+          className={`w-8 h-8 rounded flex items-center justify-center transition-colors ${
+            status === 'no_show'
+              ? 'bg-red-500 text-white'
+              : 'bg-gray-100 hover:bg-red-100 text-gray-400'
+          }`}
+          title="No-Show"
+        >
+          ✗
+        </button>
+      </div>
     );
-  }
+  };
 
   return (
     <Layout showHeader={false}>
@@ -378,41 +282,93 @@ export function Attendance() {
         <div className="bg-[#1B2A4A] px-4 py-4 flex items-center gap-4">
           <button
             onClick={() => navigate(-1)}
-            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10"
+            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors"
           >
             <ArrowLeft className="w-6 h-6 text-white" />
           </button>
-          <h1 className="text-xl font-bold text-white flex-1">Attendance</h1>
+          <h1 className="text-xl font-bold text-white flex-1">Attendance Roster</h1>
         </div>
 
-        <div className="p-4 space-y-3">
-          {meetings.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-gray-600">No meetings found</p>
-            </div>
-          ) : (
-            meetings.map((meeting) => (
-              <button
-                key={meeting.id}
-                onClick={() => setSelectedMeeting(meeting)}
-                className="w-full bg-white rounded-xl shadow-md p-4 flex items-center gap-4 hover:bg-gray-50 transition-colors"
-              >
-                <div className="flex-1 text-left">
-                  <h3 className="font-bold text-gray-800 text-lg mb-1">{meeting.event_name}</h3>
-                  <p className="text-sm text-gray-600">
-                    {new Date(meeting.start_date).toLocaleDateString('en-US', {
-                      weekday: 'long',
-                      month: 'long',
-                      day: 'numeric',
-                      year: 'numeric',
-                    })}
-                  </p>
-                </div>
-                <ChevronRight className="w-6 h-6 text-gray-400" />
-              </button>
-            ))
-          )}
+        <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between sticky top-0 z-10 shadow-sm">
+          <button
+            onClick={() => navigateWeeks(-1)}
+            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
+          >
+            <ChevronLeft className="w-5 h-5 text-gray-600" />
+          </button>
+          <span className="font-semibold text-gray-800 text-sm">4 Week View</span>
+          <button
+            onClick={() => navigateWeeks(1)}
+            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
+          >
+            <ChevronRight className="w-5 h-5 text-gray-600" />
+          </button>
         </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <div className="inline-block animate-spin rounded-full h-10 w-10 border-b-2 border-[#1B2A4A]" />
+          </div>
+        ) : (
+          <div className="p-4 overflow-x-auto">
+            <div className="min-w-[800px]">
+              <div className="grid grid-cols-[200px_repeat(4,1fr)] gap-px bg-gray-300 border border-gray-300 rounded-lg overflow-hidden">
+                <div className="bg-gray-100 px-4 py-3 font-bold text-gray-700 text-sm">Member</div>
+                {wednesdays.map((date) => (
+                  <div
+                    key={toDateString(date)}
+                    className="bg-gray-100 px-2 py-3 font-bold text-gray-700 text-center text-xs"
+                  >
+                    <div>{formatColumnDate(date)}</div>
+                    <div className="text-[10px] font-normal text-gray-500">
+                      {isPastMeeting(date) ? 'Past' : 'Plan'}
+                    </div>
+                  </div>
+                ))}
+
+                {members.map((member) => (
+                  <>
+                    <div
+                      key={`name-${member.id}`}
+                      className="bg-white px-4 py-3 text-sm font-medium text-gray-800 flex items-center"
+                    >
+                      {member.first_name} {member.last_name}
+                    </div>
+                    {wednesdays.map((date) => (
+                      <div key={`${member.id}-${toDateString(date)}`} className="bg-white">
+                        {renderCell(member, date)}
+                      </div>
+                    ))}
+                  </>
+                ))}
+
+                <div className="bg-gray-50 px-4 py-3 font-bold text-gray-700 text-sm border-t-2 border-gray-400">
+                  Totals
+                </div>
+                {wednesdays.map((date) => {
+                  const totals = getColumnTotals(date);
+                  const isSocial = isFourthWednesday(date);
+                  return (
+                    <div
+                      key={`total-${toDateString(date)}`}
+                      className="bg-gray-50 px-2 py-3 text-xs text-center border-t-2 border-gray-400"
+                    >
+                      {isSocial ? (
+                        <div className="text-gray-400 italic">-</div>
+                      ) : (
+                        <>
+                          <div className="text-green-600 font-bold">✓ {totals.attended}</div>
+                          <div className="text-yellow-600 font-bold">○ {totals.busy}</div>
+                          <div className="text-red-600 font-bold">✗ {totals.noShow}</div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </Layout>
   );
