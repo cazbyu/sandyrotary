@@ -26,6 +26,9 @@ import { StoryForm } from './pages/admin/StoryForm';
 import { BulletinForm } from './pages/admin/BulletinForm';
 import { PublicStory } from './pages/PublicStory';
 import { PublicBulletin } from './pages/PublicBulletin';
+import { ReferSomeone } from './pages/ReferSomeone';
+import { EZLeads } from './pages/admin/EZLeads';
+import { LeadDetail } from './pages/admin/LeadDetail';
 
 function App() {
   return (
@@ -175,6 +178,33 @@ function App() {
             element={
               <ProtectedRoute>
                 <Settings />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/refer"
+            element={
+              <ProtectedRoute>
+                <ReferSomeone />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/leads"
+            element={
+              <ProtectedRoute requireAdmin>
+                <EZLeads />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/leads/:id"
+            element={
+              <ProtectedRoute requireAdmin>
+                <LeadDetail />
               </ProtectedRoute>
             }
           />

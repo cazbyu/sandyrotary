@@ -15,10 +15,13 @@ import {
   CalendarPlus,
   ClipboardCheck,
   UserCog,
+  UserPlus,
+  Filter,
 } from 'lucide-react';
 import { Layout } from '../components/Layout';
 import { NavCard } from '../components/NavCard';
 import { CardGrid } from '../components/CardGrid';
+import { BottomNav } from '../components/BottomNav';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 
@@ -59,30 +62,31 @@ export function Home() {
 
   return (
     <Layout>
-      {isAdmin && (
-        <div className="flex border-b border-gray-200 bg-white sticky top-0 z-10 shadow-sm">
-          <button
-            onClick={() => setActiveTab('home')}
-            className={`flex-1 py-4 text-center font-semibold transition-colors ${
-              activeTab === 'home'
-                ? 'text-[#1B2A4A] border-b-2 border-[#D94F4F]'
-                : 'text-gray-500'
-            }`}
-          >
-            Home
-          </button>
-          <button
-            onClick={() => setActiveTab('admin')}
-            className={`flex-1 py-4 text-center font-semibold transition-colors ${
-              activeTab === 'admin'
-                ? 'text-[#1B2A4A] border-b-2 border-[#D94F4F]'
-                : 'text-gray-500'
-            }`}
-          >
-            Administration
-          </button>
-        </div>
-      )}
+      <div className="pb-20">
+        {isAdmin && (
+          <div className="flex border-b border-gray-200 bg-white sticky top-0 z-10 shadow-sm">
+            <button
+              onClick={() => setActiveTab('home')}
+              className={`flex-1 py-4 text-center font-semibold transition-colors ${
+                activeTab === 'home'
+                  ? 'text-[#1B2A4A] border-b-2 border-[#D94F4F]'
+                  : 'text-gray-500'
+              }`}
+            >
+              Home
+            </button>
+            <button
+              onClick={() => setActiveTab('admin')}
+              className={`flex-1 py-4 text-center font-semibold transition-colors ${
+                activeTab === 'admin'
+                  ? 'text-[#1B2A4A] border-b-2 border-[#D94F4F]'
+                  : 'text-gray-500'
+              }`}
+            >
+              Administration
+            </button>
+          </div>
+        )}
 
       {activeTab === 'home' && (
         <CardGrid>
@@ -90,6 +94,7 @@ export function Home() {
           <NavCard to="/members" icon={Users} label="Members" />
           <NavCard to="/leadership" icon={Shield} label="Leadership" />
           <NavCard to="/calendar" icon={Calendar} label="Calendar" />
+          <NavCard to="/refer" icon={UserPlus} label="Refer Someone" />
           <NavCard to="/stories" icon={BookOpen} label="EZ-Story" />
           <NavCard to="/bulletins" icon={Newspaper} label="EZ-Bulletin" />
           <NavCard to="/selfies" icon={Camera} label="Service Selfies" />
@@ -107,11 +112,14 @@ export function Home() {
 
       {activeTab === 'admin' && isAdmin && (
         <CardGrid>
+          <NavCard to="/leads" icon={Filter} label="EZ-Leads" />
           <NavCard to="/admin/add-event" icon={CalendarPlus} label="Add Calendar Event" />
           <NavCard to="/admin/attendance" icon={ClipboardCheck} label="Attendance" />
           <NavCard to="/admin/members" icon={UserCog} label="Manage Members" />
         </CardGrid>
       )}
+      </div>
+      <BottomNav />
     </Layout>
   );
 }

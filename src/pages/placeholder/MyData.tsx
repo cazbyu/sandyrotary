@@ -252,8 +252,8 @@ export function MyData() {
         .update({
           first_name: formData.first_name,
           last_name: formData.last_name,
-          birthday: formData.birthday,
-          wedding_anniversary: formData.wedding_anniversary,
+          birthday: formData.birthday || null,
+          wedding_anniversary: formData.wedding_anniversary || null,
           preferred_phone: formData.preferred_phone,
           mobile_phone: formData.mobile_phone,
           home_phone: formData.home_phone,
