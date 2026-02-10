@@ -58,7 +58,7 @@ function App() {
           <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
           <Route path="/refer" element={<ProtectedRoute><ReferSomeone /></ProtectedRoute>} />
           <Route path="/prospective-members" element={<ProtectedRoute><ProspectiveMembers /></ProtectedRoute>} />
-          <Route path="/attendance" element={<ProtectedRoute><AttendancePlans /></ProtectedRoute>} />
+          <Route path="/attendance-plans" element={<ProtectedRoute><AttendancePlans /></ProtectedRoute>} />
 
           <Route path="/leads" element={<ProtectedRoute requireLeader><EZLeads /></ProtectedRoute>} />
           <Route path="/leads/:id" element={<ProtectedRoute requireLeader><LeadDetail /></ProtectedRoute>} />

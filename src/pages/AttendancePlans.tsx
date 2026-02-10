@@ -1,150 +1,156 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ChevronDown, ChevronUp, Users, User } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Lock, Check } from 'lucide-react';
 import { Layout } from '../components/Layout';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { getAttendanceStatus } from '../lib/attendanceUtils';
 
-interface Meeting {
-  id: string;
-  event_name: string;
-  start_date: string;
+function getStartWednesday(): Date {
+  const now = new Date();
+  now.setHours(12, 0, 0, 0);
+  const day = now.getDay();
+  const offset = day <= 3 ? 3 - day : 10 - day;
+  now.setDate(now.getDate() + offset);
+  return now;
 }
 
-interface AttendanceRecord {
-  id: string;
-  event_id: string;
-  rsvp_status: string;
-  actually_attended: boolean | null;
-  member: {
-    id: string;
-    first_name: string;
-    last_name: string;
-    profile_photo_url?: string;
-  };
+function generateWednesdays(start: Date, count: number): Date[] {
+  const result: Date[] = [];
+  for (let i = 0; i < count; i++) {
+    const d = new Date(start);
+    d.setDate(d.getDate() + i * 7);
+    d.setHours(12, 0, 0, 0);
+    result.push(d);
+  }
+  return result;
+}
+
+function isFourthWednesday(date: Date): boolean {
+  return date.getDay() === 3 && Math.ceil(date.getDate() / 7) === 4;
+}
+
+function toDateString(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function isPastMeeting(date: Date): boolean {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const meetingDay = new Date(date);
+  meetingDay.setHours(0, 0, 0, 0);
+  return today > meetingDay;
+}
+
+function isMeetingLocked(meetingDate: Date): boolean {
+  if (isPastMeeting(meetingDate)) return true;
+
+  const fridayBefore = new Date(meetingDate);
+  fridayBefore.setDate(fridayBefore.getDate() - 5);
+
+  const nowMT = new Date().toLocaleString('sv-SE', { timeZone: 'America/Denver' });
+  const deadlineDateMT = fridayBefore.toLocaleDateString('sv-SE', {
+    timeZone: 'America/Denver',
+  });
+  const deadlineMT = deadlineDateMT + ' 23:59:00';
+
+  return nowMT >= deadlineMT;
+}
+
+function formatDisplayDate(date: Date): string {
+  return date.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
 }
 
 export function AttendancePlans() {
   const navigate = useNavigate();
-  const { member, isLeader } = useAuth();
+  const { member } = useAuth();
+  const [windowStart, setWindowStart] = useState<Date>(getStartWednesday);
+  const [plans, setPlans] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
-  const [meetings, setMeetings] = useState<Meeting[]>([]);
-  const [expandedMeetingId, setExpandedMeetingId] = useState<string | null>(null);
-  const [attendanceByMeeting, setAttendanceByMeeting] = useState<Record<string, AttendanceRecord[]>>({});
-  const [loadingAttendance, setLoadingAttendance] = useState<string | null>(null);
+  const [toggling, setToggling] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadMeetings();
-  }, []);
+  const wednesdays = generateWednesdays(windowStart, 4);
 
-  const loadMeetings = async () => {
+  const loadPlans = useCallback(async () => {
+    if (!member) return;
+    const dateStrings = wednesdays.map(toDateString);
     try {
       const { data, error } = await supabase
-        .from('0012-sr-calendar-events')
-        .select('id, event_name, start_date')
-        .eq('category', 'Club Meeting')
-        .eq('status', 'Active')
-        .order('start_date', { ascending: false })
-        .limit(20);
+        .from('0012-sr-attendance-plans')
+        .select('meeting_date, is_attending')
+        .eq('member_id', member.id)
+        .in('meeting_date', dateStrings);
 
       if (error) throw error;
-      setMeetings(data || []);
+
+      const planMap: Record<string, boolean> = {};
+      (data || []).forEach((p: { meeting_date: string; is_attending: boolean }) => {
+        planMap[p.meeting_date] = p.is_attending;
+      });
+      setPlans(planMap);
     } catch (error) {
-      console.error('Error loading meetings:', error);
+      console.error('Error loading plans:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [member?.id, windowStart]);
 
-  const loadAttendance = async (eventId: string) => {
-    if (attendanceByMeeting[eventId]) return;
+  useEffect(() => {
+    setLoading(true);
+    loadPlans();
+  }, [loadPlans]);
 
-    setLoadingAttendance(eventId);
+  const toggleAttendance = async (date: Date) => {
+    if (!member) return;
+    const dateStr = toDateString(date);
+    const currentValue = plans[dateStr] ?? true;
+    const newValue = !currentValue;
+
+    setToggling(dateStr);
+    setPlans((prev) => ({ ...prev, [dateStr]: newValue }));
+
     try {
-      let query = supabase
-        .from('0012-sr-meeting-attendance')
-        .select(`
-          id,
-          event_id,
-          rsvp_status,
-          actually_attended,
-          member:member_id (
-            id,
-            first_name,
-            last_name,
-            profile_photo_url
-          )
-        `)
-        .eq('event_id', eventId);
+      const { error } = await supabase
+        .from('0012-sr-attendance-plans')
+        .upsert(
+          {
+            member_id: member.id,
+            meeting_date: dateStr,
+            is_attending: newValue,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'member_id,meeting_date' }
+        );
 
-      if (!isLeader && member) {
-        query = query.eq('member_id', member.id);
-      }
-
-      const { data, error } = await query;
       if (error) throw error;
-
-      const records = (data || []) as unknown as AttendanceRecord[];
-      records.sort((a, b) =>
-        `${a.member.last_name} ${a.member.first_name}`.localeCompare(
-          `${b.member.last_name} ${b.member.first_name}`
-        )
-      );
-
-      setAttendanceByMeeting((prev) => ({ ...prev, [eventId]: records }));
     } catch (error) {
-      console.error('Error loading attendance:', error);
+      console.error('Error toggling attendance:', error);
+      setPlans((prev) => ({ ...prev, [dateStr]: currentValue }));
     } finally {
-      setLoadingAttendance(null);
+      setToggling(null);
     }
   };
 
-  const toggleMeeting = (meetingId: string) => {
-    if (expandedMeetingId === meetingId) {
-      setExpandedMeetingId(null);
-    } else {
-      setExpandedMeetingId(meetingId);
-      loadAttendance(meetingId);
-    }
+  const navigateWeeks = (direction: number) => {
+    const newStart = new Date(windowStart);
+    newStart.setDate(newStart.getDate() + direction * 28);
+    setWindowStart(newStart);
   };
 
-  const formatMeetingDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  };
-
-  const formatMeetingTime = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    });
-  };
-
-  const getStatusCounts = (records: AttendanceRecord[], meetingDate: string) => {
-    let attending = 0;
-    let busy = 0;
-    let noShow = 0;
-
-    records.forEach((r) => {
-      if (r.rsvp_status === 'not_attending') {
-        busy++;
-      } else if (r.actually_attended === false) {
-        noShow++;
-      } else {
-        attending++;
-      }
-    });
-
-    return { attending, busy, noShow, total: records.length };
-  };
+  const lastWed = wednesdays[wednesdays.length - 1];
+  const rangeLabel = `${windowStart.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  })} \u2013 ${lastWed.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  })}`;
 
   return (
     <Layout showHeader={false}>
@@ -156,111 +162,129 @@ export function AttendancePlans() {
           >
             <ArrowLeft className="w-6 h-6 text-white" />
           </button>
-          <div className="flex-1">
-            <h1 className="text-xl font-bold text-white">Attendance Plans</h1>
-            <p className="text-white/70 text-sm">
-              {isLeader ? 'All members' : 'Your attendance'}
-            </p>
-          </div>
-          {isLeader ? (
-            <Users className="w-5 h-5 text-white/60" />
-          ) : (
-            <User className="w-5 h-5 text-white/60" />
-          )}
+          <h1 className="text-xl font-bold text-white flex-1">Attendance Plans</h1>
+        </div>
+
+        <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between sticky top-0 z-10 shadow-sm">
+          <button
+            onClick={() => navigateWeeks(-1)}
+            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
+          >
+            <ChevronLeft className="w-5 h-5 text-gray-600" />
+          </button>
+          <span className="font-semibold text-gray-800 text-sm">{rangeLabel}</span>
+          <button
+            onClick={() => navigateWeeks(1)}
+            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
+          >
+            <ChevronRight className="w-5 h-5 text-gray-600" />
+          </button>
         </div>
 
         <div className="p-4">
           {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="text-center">
-                <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#1B2A4A]"></div>
-                <p className="mt-4 text-gray-600">Loading meetings...</p>
-              </div>
-            </div>
-          ) : meetings.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-gray-600">No meetings found</p>
+            <div className="flex items-center justify-center py-16">
+              <div className="inline-block animate-spin rounded-full h-10 w-10 border-b-2 border-[#1B2A4A]" />
             </div>
           ) : (
             <div className="space-y-3">
-              {meetings.map((meeting) => {
-                const isExpanded = expandedMeetingId === meeting.id;
-                const records = attendanceByMeeting[meeting.id];
-                const isLoadingThis = loadingAttendance === meeting.id;
-                const isPast = new Date() > new Date(meeting.start_date);
+              {wednesdays.map((date) => {
+                const dateStr = toDateString(date);
+                const isSocial = isFourthWednesday(date);
+                const past = isPastMeeting(date);
+                const locked = isMeetingLocked(date);
+                const isAttending = plans[dateStr] ?? true;
+                const isTogglingThis = toggling === dateStr;
+
+                if (isSocial) {
+                  return (
+                    <div
+                      key={dateStr}
+                      className="bg-gray-100 rounded-xl px-5 py-4 flex items-center justify-between"
+                    >
+                      <span className="font-medium text-gray-400">
+                        {formatDisplayDate(date)}
+                      </span>
+                      <span className="text-sm font-semibold text-gray-400 italic">
+                        Social
+                      </span>
+                    </div>
+                  );
+                }
+
+                if (past) {
+                  return (
+                    <div
+                      key={dateStr}
+                      className="bg-white rounded-xl shadow-sm border border-gray-100 px-5 py-4 flex items-center justify-between"
+                    >
+                      <span className="font-medium text-gray-500">
+                        {formatDisplayDate(date)}
+                      </span>
+                      {isAttending ? (
+                        <span className="flex items-center gap-1.5 text-sm font-semibold text-green-600">
+                          <Check className="w-4 h-4" />
+                          Attended
+                        </span>
+                      ) : (
+                        <span className="text-sm font-semibold text-gray-400">Busy</span>
+                      )}
+                    </div>
+                  );
+                }
+
+                if (locked) {
+                  return (
+                    <div
+                      key={dateStr}
+                      className="bg-white rounded-xl shadow-sm border border-gray-100 px-5 py-4 flex items-center justify-between"
+                    >
+                      <span className="font-medium text-gray-800">
+                        {formatDisplayDate(date)}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <div
+                          className={`relative inline-flex h-7 w-12 items-center rounded-full opacity-50 ${
+                            isAttending ? 'bg-green-500' : 'bg-gray-300'
+                          }`}
+                        >
+                          <span
+                            className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ${
+                              isAttending ? 'translate-x-6' : 'translate-x-1'
+                            }`}
+                          />
+                        </div>
+                        <Lock className="w-4 h-4 text-gray-400" />
+                      </div>
+                    </div>
+                  );
+                }
 
                 return (
                   <div
-                    key={meeting.id}
-                    className="bg-white rounded-xl shadow-md overflow-hidden transition-all"
+                    key={dateStr}
+                    className="bg-white rounded-xl shadow-sm border border-gray-100 px-5 py-4 flex items-center justify-between"
                   >
+                    <span className="font-medium text-gray-800">
+                      {formatDisplayDate(date)}
+                    </span>
                     <button
-                      onClick={() => toggleMeeting(meeting.id)}
-                      className="w-full p-4 flex items-center gap-4 hover:bg-gray-50 transition-colors"
+                      onClick={() => toggleAttendance(date)}
+                      disabled={isTogglingThis}
+                      className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
+                        isTogglingThis
+                          ? 'opacity-60 cursor-wait'
+                          : isAttending
+                          ? 'bg-green-500'
+                          : 'bg-gray-300'
+                      }`}
                     >
-                      <div
-                        className={`flex-shrink-0 w-14 h-14 rounded-lg flex flex-col items-center justify-center ${
-                          isPast ? 'bg-gray-400' : 'bg-[#1B2A4A]'
-                        } text-white`}
-                      >
-                        <span className="text-xs font-semibold uppercase">
-                          {new Date(meeting.start_date).toLocaleString('en-US', { month: 'short' })}
-                        </span>
-                        <span className="text-xl font-bold leading-tight">
-                          {new Date(meeting.start_date).getDate()}
-                        </span>
-                      </div>
-
-                      <div className="flex-1 text-left min-w-0">
-                        <h3 className="font-bold text-gray-800 text-base truncate">
-                          {meeting.event_name}
-                        </h3>
-                        <p className="text-sm text-gray-500">
-                          {formatMeetingDate(meeting.start_date)} at {formatMeetingTime(meeting.start_date)}
-                        </p>
-                      </div>
-
-                      <div className="flex-shrink-0">
-                        {isExpanded ? (
-                          <ChevronUp className="w-5 h-5 text-gray-400" />
-                        ) : (
-                          <ChevronDown className="w-5 h-5 text-gray-400" />
-                        )}
-                      </div>
+                      <span
+                        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform ${
+                          isAttending ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
                     </button>
-
-                    {isExpanded && (
-                      <div className="border-t border-gray-100">
-                        {isLoadingThis ? (
-                          <div className="flex items-center justify-center py-8">
-                            <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-[#1B2A4A]"></div>
-                          </div>
-                        ) : records && records.length > 0 ? (
-                          <>
-                            {isLeader && (
-                              <SummaryBar
-                                counts={getStatusCounts(records, meeting.start_date)}
-                                isPast={isPast}
-                              />
-                            )}
-                            <div className="divide-y divide-gray-100">
-                              {records.map((record) => (
-                                <AttendanceRow
-                                  key={record.id}
-                                  record={record}
-                                  meetingDate={meeting.start_date}
-                                  isLeaderView={isLeader}
-                                />
-                              ))}
-                            </div>
-                          </>
-                        ) : (
-                          <div className="text-center py-6">
-                            <p className="text-sm text-gray-500">No attendance records</p>
-                          </div>
-                        )}
-                      </div>
-                    )}
                   </div>
                 );
               })}
@@ -269,86 +293,5 @@ export function AttendancePlans() {
         </div>
       </div>
     </Layout>
-  );
-}
-
-function SummaryBar({
-  counts,
-  isPast,
-}: {
-  counts: { attending: number; busy: number; noShow: number; total: number };
-  isPast: boolean;
-}) {
-  return (
-    <div className="px-4 py-3 bg-gray-50 flex items-center gap-4 text-sm">
-      <div className="flex items-center gap-1.5">
-        <span className="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block" />
-        <span className="text-gray-700 font-medium">{counts.attending}</span>
-        <span className="text-gray-500">Attending</span>
-      </div>
-      <div className="flex items-center gap-1.5">
-        <span className="w-2.5 h-2.5 rounded-full bg-gray-500 inline-block" />
-        <span className="text-gray-700 font-medium">{counts.busy}</span>
-        <span className="text-gray-500">Busy</span>
-      </div>
-      {isPast && counts.noShow > 0 && (
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" />
-          <span className="text-gray-700 font-medium">{counts.noShow}</span>
-          <span className="text-gray-500">No-Show</span>
-        </div>
-      )}
-      <div className="ml-auto text-gray-500">
-        {counts.total} total
-      </div>
-    </div>
-  );
-}
-
-function AttendanceRow({
-  record,
-  meetingDate,
-  isLeaderView,
-}: {
-  record: AttendanceRecord;
-  meetingDate: string;
-  isLeaderView: boolean;
-}) {
-  const status = getAttendanceStatus(
-    record.rsvp_status,
-    record.actually_attended,
-    new Date(meetingDate),
-    isLeaderView
-  );
-
-  return (
-    <div className="px-4 py-3 flex items-center gap-3">
-      <div className="w-10 h-10 rounded-full bg-gray-200 flex-shrink-0 overflow-hidden">
-        {record.member.profile_photo_url ? (
-          <img
-            src={record.member.profile_photo_url}
-            alt=""
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-gray-500 font-semibold text-sm">
-            {record.member.first_name[0]}
-            {record.member.last_name[0]}
-          </div>
-        )}
-      </div>
-
-      <div className="flex-1 min-w-0">
-        <p className="font-medium text-gray-800 text-sm truncate">
-          {record.member.first_name} {record.member.last_name}
-        </p>
-      </div>
-
-      <span
-        className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold text-white ${status.color}`}
-      >
-        {status.label}
-      </span>
-    </div>
   );
 }
