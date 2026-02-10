@@ -146,6 +146,36 @@ export function Attendance() {
     }
   };
 
+  const updateAttendancePlan = async (memberId: string, date: Date, isAttending: boolean) => {
+    if (!currentUser) return;
+
+    const dateStr = toDateString(date);
+    const key = `${memberId}-${dateStr}`;
+    setUpdating(key);
+
+    try {
+      const { error } = await supabase
+        .from('0012-sr-attendance-plans')
+        .upsert(
+          {
+            member_id: memberId,
+            meeting_date: dateStr,
+            is_attending: isAttending,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'member_id,meeting_date' }
+        );
+
+      if (error) throw error;
+
+      await loadData();
+    } catch (error) {
+      console.error('Error updating attendance plan:', error);
+    } finally {
+      setUpdating(null);
+    }
+  };
+
   const updateAttendance = async (memberId: string, date: Date, status: 'attended' | 'busy' | 'no_show') => {
     if (!currentUser) return;
 
@@ -217,14 +247,39 @@ export function Attendance() {
     }
 
     if (!isPast) {
+      if (isUpdating) {
+        return (
+          <div className="h-full flex items-center justify-center">
+            <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-[#1B2A4A]" />
+          </div>
+        );
+      }
+
       const isAttending = status === 'attending';
       return (
-        <div
-          className={`h-full flex items-center justify-center text-xs font-medium ${
-            isAttending ? 'bg-green-50 text-green-700' : 'bg-gray-50 text-gray-500'
-          }`}
-        >
-          {isAttending ? 'Attending' : 'Busy'}
+        <div className="h-full flex items-center justify-center gap-1">
+          <button
+            onClick={() => updateAttendancePlan(member.id, date, true)}
+            className={`w-10 h-10 rounded flex items-center justify-center transition-colors text-xs font-semibold ${
+              isAttending
+                ? 'bg-green-500 text-white'
+                : 'bg-gray-100 hover:bg-green-100 text-gray-400'
+            }`}
+            title="Attending"
+          >
+            ✓
+          </button>
+          <button
+            onClick={() => updateAttendancePlan(member.id, date, false)}
+            className={`w-10 h-10 rounded flex items-center justify-center transition-colors text-xs font-semibold ${
+              !isAttending
+                ? 'bg-yellow-500 text-white'
+                : 'bg-gray-100 hover:bg-yellow-100 text-gray-400'
+            }`}
+            title="Busy"
+          >
+            ○
+          </button>
         </div>
       );
     }
