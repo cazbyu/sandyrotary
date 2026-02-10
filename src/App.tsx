@@ -29,6 +29,7 @@ import { PublicBulletin } from './pages/PublicBulletin';
 import { ReferSomeone } from './pages/ReferSomeone';
 import { EZLeads } from './pages/admin/EZLeads';
 import { LeadDetail } from './pages/admin/LeadDetail';
+import { ProspectiveMembers } from './pages/ProspectiveMembers';
 
 function App() {
   return (
@@ -38,239 +39,36 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/access-denied" element={<AccessDenied />} />
 
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <Home />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+          <Route path="/my-data" element={<ProtectedRoute><MyData /></ProtectedRoute>} />
+          <Route path="/members" element={<ProtectedRoute><Members /></ProtectedRoute>} />
+          <Route path="/members/:id" element={<ProtectedRoute><MemberDetail /></ProtectedRoute>} />
+          <Route path="/leadership" element={<ProtectedRoute><Leadership /></ProtectedRoute>} />
+          <Route path="/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
+          <Route path="/stories" element={<ProtectedRoute><Stories /></ProtectedRoute>} />
+          <Route path="/stories/:slug" element={<ProtectedRoute><StoryDetail /></ProtectedRoute>} />
+          <Route path="/bulletins" element={<ProtectedRoute><Bulletins /></ProtectedRoute>} />
+          <Route path="/bulletins/:slug" element={<ProtectedRoute><BulletinDetail /></ProtectedRoute>} />
+          <Route path="/selfies" element={<ProtectedRoute><Selfies /></ProtectedRoute>} />
+          <Route path="/message" element={<ProtectedRoute><Message /></ProtectedRoute>} />
+          <Route path="/sponsors" element={<ProtectedRoute><Sponsors /></ProtectedRoute>} />
+          <Route path="/club-info" element={<ProtectedRoute><ClubInfo /></ProtectedRoute>} />
+          <Route path="/birthdays" element={<ProtectedRoute><Birthdays /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+          <Route path="/refer" element={<ProtectedRoute><ReferSomeone /></ProtectedRoute>} />
+          <Route path="/prospective-members" element={<ProtectedRoute><ProspectiveMembers /></ProtectedRoute>} />
+          <Route path="/attendance" element={<ProtectedRoute><Attendance /></ProtectedRoute>} />
 
-          <Route
-            path="/my-data"
-            element={
-              <ProtectedRoute>
-                <MyData />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/leads" element={<ProtectedRoute requireLeader><EZLeads /></ProtectedRoute>} />
+          <Route path="/leads/:id" element={<ProtectedRoute requireLeader><LeadDetail /></ProtectedRoute>} />
 
-          <Route
-            path="/members"
-            element={
-              <ProtectedRoute>
-                <Members />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/members/:id"
-            element={
-              <ProtectedRoute>
-                <MemberDetail />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/leadership"
-            element={
-              <ProtectedRoute>
-                <Leadership />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/calendar"
-            element={
-              <ProtectedRoute>
-                <CalendarPage />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/stories"
-            element={
-              <ProtectedRoute>
-                <Stories />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/stories/:slug"
-            element={
-              <ProtectedRoute>
-                <StoryDetail />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/bulletins"
-            element={
-              <ProtectedRoute>
-                <Bulletins />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/bulletins/:slug"
-            element={
-              <ProtectedRoute>
-                <BulletinDetail />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/selfies"
-            element={
-              <ProtectedRoute>
-                <Selfies />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/message"
-            element={
-              <ProtectedRoute>
-                <Message />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/sponsors"
-            element={
-              <ProtectedRoute>
-                <Sponsors />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/club-info"
-            element={
-              <ProtectedRoute>
-                <ClubInfo />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/birthdays"
-            element={
-              <ProtectedRoute>
-                <Birthdays />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/settings"
-            element={
-              <ProtectedRoute>
-                <Settings />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/refer"
-            element={
-              <ProtectedRoute>
-                <ReferSomeone />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/leads"
-            element={
-              <ProtectedRoute requireAdmin>
-                <EZLeads />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/leads/:id"
-            element={
-              <ProtectedRoute requireAdmin>
-                <LeadDetail />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/admin/add-event"
-            element={
-              <ProtectedRoute requireAdmin>
-                <AddEvent />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/admin/attendance"
-            element={
-              <ProtectedRoute requireAdmin>
-                <Attendance />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/admin/members"
-            element={
-              <ProtectedRoute requireAdmin>
-                <ManageMembers />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/admin/stories/new"
-            element={
-              <ProtectedRoute requireAdmin>
-                <StoryForm />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/admin/stories/:slug"
-            element={
-              <ProtectedRoute requireAdmin>
-                <StoryForm />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/admin/bulletins/new"
-            element={
-              <ProtectedRoute requireAdmin>
-                <BulletinForm />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/admin/bulletins/:slug"
-            element={
-              <ProtectedRoute requireAdmin>
-                <BulletinForm />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/admin/add-event" element={<ProtectedRoute requireLeader><AddEvent /></ProtectedRoute>} />
+          <Route path="/admin/attendance" element={<ProtectedRoute requireLeader><Attendance /></ProtectedRoute>} />
+          <Route path="/admin/members" element={<ProtectedRoute requireAdmin><ManageMembers /></ProtectedRoute>} />
+          <Route path="/admin/stories/new" element={<ProtectedRoute requireAdmin><StoryForm /></ProtectedRoute>} />
+          <Route path="/admin/stories/:slug" element={<ProtectedRoute requireAdmin><StoryForm /></ProtectedRoute>} />
+          <Route path="/admin/bulletins/new" element={<ProtectedRoute requireAdmin><BulletinForm /></ProtectedRoute>} />
+          <Route path="/admin/bulletins/:slug" element={<ProtectedRoute requireAdmin><BulletinForm /></ProtectedRoute>} />
 
           <Route path="/share/story/:slug" element={<PublicStory />} />
           <Route path="/share/bulletin/:slug" element={<PublicBulletin />} />

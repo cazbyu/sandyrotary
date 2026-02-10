@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Phone, Mail, MessageSquare, ArrowRight, Plus, Building, Briefcase, User } from 'lucide-react';
+import { ArrowLeft, Phone, Mail, MessageSquare, ArrowRight, Plus, Building, Briefcase, User, MapPin, Tag } from 'lucide-react';
 import { Layout } from '../../components/Layout';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -24,6 +24,13 @@ interface Lead {
   proposed_date: string | null;
   approved_date: string | null;
   member_date: string | null;
+  tags: string[];
+  email_opt_in: boolean;
+  preferred_contact_method: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
   referrer_name?: string;
   assigned_name?: string;
 }
@@ -46,6 +53,8 @@ const STAGE_TIMELINE = [
   { key: 'New Member', label: 'Member', dateField: 'member_date' },
 ];
 
+const DEFAULT_TAGS = ['newsletter', 'event-invite', 'fundraiser', 'meeting-invite', 'holiday-party'];
+
 export function LeadDetail() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -55,15 +64,11 @@ export function LeadDetail() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [showAddActivity, setShowAddActivity] = useState(false);
   const [showMoveStage, setShowMoveStage] = useState(false);
-  const [newActivity, setNewActivity] = useState({
-    type: 'Note',
-    description: '',
-  });
+  const [showTagPicker, setShowTagPicker] = useState(false);
+  const [newActivity, setNewActivity] = useState({ type: 'Note', description: '' });
 
   useEffect(() => {
-    if (id) {
-      loadLeadData();
-    }
+    if (id) loadLeadData();
   }, [id]);
 
   const loadLeadData = async () => {
@@ -84,10 +89,8 @@ export function LeadDetail() {
           .from('0012-sr-members')
           .select('first_name, last_name')
           .eq('id', leadData.referred_by)
-          .single();
-        if (referrer) {
-          referrer_name = `${referrer.first_name} ${referrer.last_name}`;
-        }
+          .maybeSingle();
+        if (referrer) referrer_name = `${referrer.first_name} ${referrer.last_name}`;
       }
 
       if (leadData.assigned_to) {
@@ -95,13 +98,17 @@ export function LeadDetail() {
           .from('0012-sr-members')
           .select('first_name, last_name')
           .eq('id', leadData.assigned_to)
-          .single();
-        if (assignee) {
-          assigned_name = `${assignee.first_name} ${assignee.last_name}`;
-        }
+          .maybeSingle();
+        if (assignee) assigned_name = `${assignee.first_name} ${assignee.last_name}`;
       }
 
-      setLead({ ...leadData, referrer_name, assigned_name });
+      setLead({
+        ...leadData,
+        tags: leadData.tags || [],
+        email_opt_in: leadData.email_opt_in ?? true,
+        referrer_name,
+        assigned_name,
+      });
 
       const { data: activitiesData, error: activitiesError } = await supabase
         .from('0012-sr-lead-activities')
@@ -119,10 +126,8 @@ export function LeadDetail() {
               .from('0012-sr-members')
               .select('first_name, last_name')
               .eq('id', activity.performed_by)
-              .single();
-            if (performer) {
-              performer_name = `${performer.first_name} ${performer.last_name}`;
-            }
+              .maybeSingle();
+            if (performer) performer_name = `${performer.first_name} ${performer.last_name}`;
           }
           return { ...activity, performer_name };
         })
@@ -138,7 +143,6 @@ export function LeadDetail() {
 
   const handleAddActivity = async () => {
     if (!newActivity.description.trim()) return;
-
     try {
       await supabase.from('0012-sr-lead-activities').insert({
         lead_id: id,
@@ -146,7 +150,6 @@ export function LeadDetail() {
         description: newActivity.description.trim(),
         performed_by: member!.id,
       });
-
       setNewActivity({ type: 'Note', description: '' });
       setShowAddActivity(false);
       loadLeadData();
@@ -158,21 +161,22 @@ export function LeadDetail() {
 
   const handleMoveStage = async (newStage: string) => {
     if (!lead) return;
-
     try {
       const today = new Date().toISOString().split('T')[0];
-      const updates: any = { stage: newStage };
+      const updates: Record<string, string> = { stage: newStage };
 
-      if (newStage === 'Contacted') updates.contacted_date = today;
-      if (newStage === 'Interested') updates.interested_date = today;
-      if (newStage === 'Proposed') updates.proposed_date = today;
-      if (newStage === 'Approved') updates.approved_date = today;
-      if (newStage === 'New Member') updates.member_date = today;
-      if (newStage === 'Declined') updates.declined_date = today;
-      if (newStage === 'Inactive') updates.inactive_date = today;
+      const dateMap: Record<string, string> = {
+        Contacted: 'contacted_date',
+        Interested: 'interested_date',
+        Proposed: 'proposed_date',
+        Approved: 'approved_date',
+        'New Member': 'member_date',
+        Declined: 'declined_date',
+        Inactive: 'inactive_date',
+      };
+      if (dateMap[newStage]) updates[dateMap[newStage]] = today;
 
       await supabase.from('0012-sr-leads').update(updates).eq('id', id);
-
       await supabase.from('0012-sr-lead-activities').insert({
         lead_id: id,
         activity_type: 'Stage Change',
@@ -184,16 +188,27 @@ export function LeadDetail() {
       loadLeadData();
     } catch (error) {
       console.error('Error moving stage:', error);
-      alert('Failed to update stage');
+    }
+  };
+
+  const handleToggleTag = async (tag: string) => {
+    if (!lead) return;
+    const newTags = lead.tags.includes(tag)
+      ? lead.tags.filter((t) => t !== tag)
+      : [...lead.tags, tag];
+
+    try {
+      await supabase.from('0012-sr-leads').update({ tags: newTags }).eq('id', id);
+      setLead({ ...lead, tags: newTags });
+    } catch (error) {
+      console.error('Error updating tags:', error);
     }
   };
 
   const getNextStages = () => {
     if (!lead) return [];
-
     const stageOrder = ['Prospect', 'Contacted', 'Interested', 'Proposed', 'Approved', 'New Member'];
     const currentIndex = stageOrder.indexOf(lead.stage);
-
     const options = [];
     if (currentIndex >= 0 && currentIndex < stageOrder.length - 1) {
       options.push(stageOrder[currentIndex + 1]);
@@ -201,7 +216,6 @@ export function LeadDetail() {
     if (lead.stage !== 'Declined' && lead.stage !== 'Inactive') {
       options.push('Declined', 'Inactive');
     }
-
     return options;
   };
 
@@ -212,25 +226,31 @@ export function LeadDetail() {
 
   const getStageColor = (stage: string) => {
     const colors: Record<string, string> = {
-      Prospect: 'bg-gray-400',
-      Contacted: 'bg-blue-500',
-      Interested: 'bg-yellow-500',
-      Proposed: 'bg-orange-500',
-      Approved: 'bg-green-500',
-      'New Member': 'bg-[#1B2A4A]',
-      Declined: 'bg-red-500',
-      Inactive: 'bg-gray-300',
+      Prospect: 'bg-gray-400', Contacted: 'bg-blue-500', Interested: 'bg-yellow-500',
+      Proposed: 'bg-orange-500', Approved: 'bg-green-500', 'New Member': 'bg-[#1B2A4A]',
+      Declined: 'bg-red-500', Inactive: 'bg-gray-300',
     };
     return colors[stage] || 'bg-gray-400';
   };
 
+  const getWhatsAppUrl = (phone: string) => {
+    const cleaned = phone.replace(/\D/g, '');
+    const withCountry = cleaned.startsWith('1') ? cleaned : `1${cleaned}`;
+    return `https://wa.me/${withCountry}`;
+  };
+
   if (loading) {
     return (
-      <Layout>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
+      <Layout showHeader={false}>
+        <div className="min-h-screen bg-[#F5F7FA]">
+          <div className="bg-[#1B2A4A] px-4 py-4 flex items-center gap-4">
+            <button onClick={() => navigate(-1)} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10">
+              <ArrowLeft className="w-6 h-6 text-white" />
+            </button>
+            <h1 className="text-xl font-bold text-white">Loading...</h1>
+          </div>
+          <div className="flex items-center justify-center py-12">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#1B2A4A]"></div>
-            <p className="mt-4 text-gray-600">Loading lead...</p>
           </div>
         </div>
       </Layout>
@@ -239,68 +259,65 @@ export function LeadDetail() {
 
   if (!lead) {
     return (
-      <Layout>
-        <div className="p-4 text-center">
+      <Layout showHeader={false}>
+        <div className="min-h-screen bg-[#F5F7FA] p-4 text-center">
           <p className="text-gray-600">Lead not found</p>
         </div>
       </Layout>
     );
   }
 
+  const addressParts = [lead.address, lead.city, lead.state, lead.zip].filter(Boolean);
+
   return (
     <Layout showHeader={false}>
       <div className="min-h-screen bg-[#F5F7FA]">
         <div className="bg-[#1B2A4A] px-4 py-4">
           <div className="flex items-center justify-between mb-2">
-            <button
-              onClick={() => navigate(-1)}
-              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10"
-            >
+            <button onClick={() => navigate(-1)} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10">
               <ArrowLeft className="w-6 h-6 text-white" />
             </button>
             <span className={`px-3 py-1 rounded-full text-white text-sm font-medium ${getStageColor(lead.stage)}`}>
               {lead.stage}
             </span>
           </div>
-          <h1 className="text-2xl font-bold text-white">
-            {lead.first_name} {lead.last_name}
-          </h1>
+          <h1 className="text-2xl font-bold text-white">{lead.first_name} {lead.last_name}</h1>
         </div>
 
         <div className="bg-white border-b border-gray-200 px-4 py-3 flex gap-2 overflow-x-auto">
           {lead.phone && (
-            <a
-              href={`tel:${lead.phone}`}
-              className="flex items-center gap-1 px-4 py-2 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600 whitespace-nowrap"
-            >
-              <Phone className="w-4 h-4" />
-              Call
+            <a href={`tel:${lead.phone}`} className="flex items-center gap-1 px-4 py-2 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600 whitespace-nowrap">
+              <Phone className="w-4 h-4" /> Call
             </a>
           )}
           {lead.email && (
             <a
-              href={`mailto:${lead.email}`}
+              href={`mailto:${lead.email}?subject=Sandy%20Rotary%20Club&body=Hi%20${lead.first_name}%2C%0A%0A`}
               className="flex items-center gap-1 px-4 py-2 bg-green-500 text-white rounded-lg text-sm font-medium hover:bg-green-600 whitespace-nowrap"
             >
-              <Mail className="w-4 h-4" />
-              Email
+              <Mail className="w-4 h-4" /> Email
+            </a>
+          )}
+          {lead.phone && (
+            <a href={`sms:${lead.phone}`} className="flex items-center gap-1 px-4 py-2 bg-teal-500 text-white rounded-lg text-sm font-medium hover:bg-teal-600 whitespace-nowrap">
+              <MessageSquare className="w-4 h-4" /> Text
             </a>
           )}
           {lead.phone && (
             <a
-              href={`sms:${lead.phone}`}
-              className="flex items-center gap-1 px-4 py-2 bg-purple-500 text-white rounded-lg text-sm font-medium hover:bg-purple-600 whitespace-nowrap"
+              href={getWhatsAppUrl(lead.phone)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 whitespace-nowrap"
             >
-              <MessageSquare className="w-4 h-4" />
-              Text
+              <MessageSquare className="w-4 h-4" /> WhatsApp
             </a>
           )}
           <button
             onClick={() => setShowMoveStage(!showMoveStage)}
             className="flex items-center gap-1 px-4 py-2 bg-[#D94F4F] text-white rounded-lg text-sm font-medium hover:bg-[#C44444] whitespace-nowrap"
           >
-            <ArrowRight className="w-4 h-4" />
-            Move Stage
+            <ArrowRight className="w-4 h-4" /> Move Stage
           </button>
         </div>
 
@@ -309,11 +326,7 @@ export function LeadDetail() {
             <p className="text-sm font-medium text-gray-700 mb-2">Move to:</p>
             <div className="flex flex-wrap gap-2">
               {getNextStages().map((stage) => (
-                <button
-                  key={stage}
-                  onClick={() => handleMoveStage(stage)}
-                  className={`px-3 py-1 rounded-lg text-sm font-medium text-white ${getStageColor(stage)} hover:opacity-90`}
-                >
+                <button key={stage} onClick={() => handleMoveStage(stage)} className={`px-3 py-1 rounded-lg text-sm font-medium text-white ${getStageColor(stage)} hover:opacity-90`}>
                   {stage}
                 </button>
               ))}
@@ -329,6 +342,7 @@ export function LeadDetail() {
                 <div className="flex items-center gap-2">
                   <Mail className="w-4 h-4 text-gray-400" />
                   <span className="text-gray-800">{lead.email}</span>
+                  {!lead.email_opt_in && <span className="text-xs text-red-500 ml-1">(opted out)</span>}
                 </div>
               )}
               {lead.phone && (
@@ -347,6 +361,12 @@ export function LeadDetail() {
                 <div className="flex items-center gap-2">
                   <Briefcase className="w-4 h-4 text-gray-400" />
                   <span className="text-gray-800">{lead.job_title}</span>
+                </div>
+              )}
+              {addressParts.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-gray-400" />
+                  <span className="text-gray-800">{addressParts.join(', ')}</span>
                 </div>
               )}
               {lead.source && (
@@ -371,11 +391,50 @@ export function LeadDetail() {
           </div>
 
           <div className="bg-white rounded-lg p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-bold text-[#1B2A4A]">Tags</h2>
+              <button
+                onClick={() => setShowTagPicker(!showTagPicker)}
+                className="flex items-center gap-1 px-3 py-1 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200"
+              >
+                <Tag className="w-3 h-3" />
+                Edit
+              </button>
+            </div>
+            {lead.tags.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {lead.tags.map((tag) => (
+                  <span key={tag} className="px-2 py-1 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium">{tag}</span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">No tags assigned</p>
+            )}
+            {showTagPicker && (
+              <div className="mt-3 pt-3 border-t border-gray-200">
+                <div className="flex flex-wrap gap-2">
+                  {DEFAULT_TAGS.map((tag) => (
+                    <button
+                      key={tag}
+                      onClick={() => handleToggleTag(tag)}
+                      className={`px-2 py-1 rounded-lg text-sm font-medium ${
+                        lead.tags.includes(tag) ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="bg-white rounded-lg p-4">
             <h2 className="font-bold text-[#1B2A4A] mb-3">Stage Timeline</h2>
             <div className="relative">
               <div className="absolute left-3 top-3 bottom-3 w-0.5 bg-gray-200"></div>
               <div className="space-y-4">
-                {STAGE_TIMELINE.map((stage, index) => {
+                {STAGE_TIMELINE.map((stage) => {
                   const dateValue = (lead as any)[stage.dateField];
                   const isCompleted = !!dateValue;
                   const isCurrent = lead.stage === stage.key;
@@ -384,22 +443,14 @@ export function LeadDetail() {
                     <div key={stage.key} className="relative flex items-start gap-3">
                       <div
                         className={`relative z-10 w-6 h-6 rounded-full border-2 flex items-center justify-center ${
-                          isCompleted
-                            ? 'bg-[#1B2A4A] border-[#1B2A4A]'
-                            : isCurrent
-                            ? 'bg-white border-[#D94F4F]'
-                            : 'bg-white border-gray-300'
+                          isCompleted ? 'bg-[#1B2A4A] border-[#1B2A4A]' : isCurrent ? 'bg-white border-[#D94F4F]' : 'bg-white border-gray-300'
                         }`}
                       >
                         {isCompleted && <div className="w-2 h-2 bg-white rounded-full"></div>}
                       </div>
                       <div className="flex-1 pt-0.5">
-                        <div className={`font-medium ${isCompleted || isCurrent ? 'text-[#1B2A4A]' : 'text-gray-400'}`}>
-                          {stage.label}
-                        </div>
-                        {isCompleted && (
-                          <div className="text-xs text-gray-500">{formatDate(dateValue)}</div>
-                        )}
+                        <div className={`font-medium ${isCompleted || isCurrent ? 'text-[#1B2A4A]' : 'text-gray-400'}`}>{stage.label}</div>
+                        {isCompleted && <div className="text-xs text-gray-500">{formatDate(dateValue)}</div>}
                       </div>
                     </div>
                   );
@@ -415,8 +466,7 @@ export function LeadDetail() {
                 onClick={() => setShowAddActivity(!showAddActivity)}
                 className="flex items-center gap-1 px-3 py-1 bg-[#D94F4F] text-white rounded-lg text-sm font-medium hover:bg-[#C44444]"
               >
-                <Plus className="w-4 h-4" />
-                Add
+                <Plus className="w-4 h-4" /> Add
               </button>
             </div>
 
@@ -442,17 +492,11 @@ export function LeadDetail() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none"
                 />
                 <div className="flex gap-2">
-                  <button
-                    onClick={handleAddActivity}
-                    className="flex-1 py-2 bg-[#D94F4F] text-white rounded-lg text-sm font-medium hover:bg-[#C44444]"
-                  >
+                  <button onClick={handleAddActivity} className="flex-1 py-2 bg-[#D94F4F] text-white rounded-lg text-sm font-medium hover:bg-[#C44444]">
                     Save Activity
                   </button>
                   <button
-                    onClick={() => {
-                      setShowAddActivity(false);
-                      setNewActivity({ type: 'Note', description: '' });
-                    }}
+                    onClick={() => { setShowAddActivity(false); setNewActivity({ type: 'Note', description: '' }); }}
                     className="flex-1 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300"
                   >
                     Cancel
@@ -464,20 +508,13 @@ export function LeadDetail() {
             <div className="space-y-3">
               {activities.map((activity) => (
                 <div key={activity.id} className="border-l-2 border-gray-200 pl-3 pb-3">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <span className="text-xs font-medium text-[#D94F4F]">{activity.activity_type}</span>
-                      <p className="text-sm text-gray-800 mt-1">{activity.description}</p>
-                    </div>
-                  </div>
+                  <span className="text-xs font-medium text-[#D94F4F]">{activity.activity_type}</span>
+                  <p className="text-sm text-gray-800 mt-1">{activity.description}</p>
                   <div className="text-xs text-gray-500 mt-1">
                     {new Date(activity.created_at).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      hour: 'numeric',
-                      minute: '2-digit',
+                      month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
                     })}
-                    {activity.performer_name && ` • ${activity.performer_name}`}
+                    {activity.performer_name && ` - ${activity.performer_name}`}
                   </div>
                 </div>
               ))}

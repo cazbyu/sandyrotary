@@ -6,6 +6,7 @@ interface AuthContextType {
   user: User | null;
   member: Member | null;
   isAdmin: boolean;
+  isLeader: boolean;
   loading: boolean;
   error: string | null;
   signOut: () => Promise<void>;
@@ -16,6 +17,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [member, setMember] = useState<Member | null>(null);
+  const [isLeader, setIsLeader] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const authCompleted = useRef(false);
@@ -80,6 +82,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const checkLeadershipRole = async (memberId: string) => {
+    try {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth();
+      const currentYear = month >= 6 ? `${year}-${year + 1}` : `${year - 1}-${year}`;
+
+      const { data } = await supabase
+        .from('0012-sr-leadership-roles')
+        .select('id')
+        .eq('member_id', memberId)
+        .eq('year', currentYear)
+        .limit(1);
+
+      setIsLeader(!!data && data.length > 0);
+    } catch {
+      setIsLeader(false);
+    }
+  };
+
   const fetchMember = async (userId: string, userEmail: string) => {
     const queryTimeout = new Promise((_, reject) =>
       setTimeout(() => reject(new Error('Query timeout')), 4000)
@@ -104,6 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (member) {
         setMember(member);
+        await checkLeadershipRole(member.id);
         setError(null);
         setLoading(false);
         authCompleted.current = true;
@@ -136,6 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .maybeSingle();
 
         setMember(updated);
+        if (updated) await checkLeadershipRole(updated.id);
         setError(null);
         authCompleted.current = true;
         if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
@@ -173,6 +197,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         member,
         isAdmin: member?.is_admin ?? false,
+        isLeader: isLeader || (member?.is_admin ?? false),
         loading,
         error,
         signOut,

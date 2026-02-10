@@ -17,6 +17,7 @@ import {
   UserCog,
   UserPlus,
   Filter,
+  UsersRound,
 } from 'lucide-react';
 import { Layout } from '../components/Layout';
 import { NavCard } from '../components/NavCard';
@@ -26,7 +27,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 
 export function Home() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, isLeader } = useAuth();
   const [activeTab, setActiveTab] = useState<'home' | 'admin'>('home');
   const [whatsappLink, setWhatsappLink] = useState('');
 
@@ -63,7 +64,7 @@ export function Home() {
   return (
     <Layout>
       <div className="pb-20">
-        {isAdmin && (
+        {isLeader && (
           <div className="flex border-b border-gray-200 bg-white sticky top-0 z-10 shadow-sm">
             <button
               onClick={() => setActiveTab('home')}
@@ -83,7 +84,7 @@ export function Home() {
                   : 'text-gray-500'
               }`}
             >
-              Administration
+              Club Administration
             </button>
           </div>
         )}
@@ -95,6 +96,8 @@ export function Home() {
           <NavCard to="/leadership" icon={Shield} label="Leadership" />
           <NavCard to="/calendar" icon={Calendar} label="Calendar" />
           <NavCard to="/refer" icon={UserPlus} label="Refer Someone" />
+          <NavCard to="/prospective-members" icon={UsersRound} label="Prospective Members" />
+          <NavCard to="/attendance" icon={ClipboardCheck} label="Attendance" />
           <NavCard to="/stories" icon={BookOpen} label="EZ-Story" />
           <NavCard to="/bulletins" icon={Newspaper} label="EZ-Bulletin" />
           <NavCard to="/selfies" icon={Camera} label="Service Selfies" />
@@ -110,12 +113,12 @@ export function Home() {
         </CardGrid>
       )}
 
-      {activeTab === 'admin' && isAdmin && (
+      {activeTab === 'admin' && isLeader && (
         <CardGrid>
           <NavCard to="/leads" icon={Filter} label="EZ-Leads" />
+          <NavCard to="/admin/attendance" icon={ClipboardCheck} label="Attendance Roster" />
           <NavCard to="/admin/add-event" icon={CalendarPlus} label="Add Calendar Event" />
-          <NavCard to="/admin/attendance" icon={ClipboardCheck} label="Attendance" />
-          <NavCard to="/admin/members" icon={UserCog} label="Manage Members" />
+          {isAdmin && <NavCard to="/admin/members" icon={UserCog} label="Manage Members" />}
         </CardGrid>
       )}
       </div>

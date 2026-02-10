@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Filter, List, LayoutGrid, Phone, Mail, User } from 'lucide-react';
+import { ArrowLeft, List, LayoutGrid, Phone, Mail, User, BookUser } from 'lucide-react';
 import { Layout } from '../../components/Layout';
+import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { ContactListView } from './ContactListView';
 
 interface Lead {
   id: string;
@@ -17,6 +19,9 @@ interface Lead {
   assigned_to: string | null;
   prospect_date: string;
   created_at: string;
+  tags: string[];
+  email_opt_in: boolean;
+  last_contacted_date: string | null;
   referrer_name?: string;
   assigned_name?: string;
 }
@@ -37,9 +42,11 @@ const INACTIVE_STAGES = [
 
 export function EZLeads() {
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
   const [loading, setLoading] = useState(true);
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [viewMode, setViewMode] = useState<'pipeline' | 'list'>('pipeline');
+  const [topView, setTopView] = useState<'pipeline' | 'contacts'>('pipeline');
+  const [pipelineMode, setPipelineMode] = useState<'kanban' | 'list'>('kanban');
 
   useEffect(() => {
     loadLeads();
@@ -64,7 +71,7 @@ export function EZLeads() {
               .from('0012-sr-members')
               .select('first_name, last_name')
               .eq('id', lead.referred_by)
-              .single();
+              .maybeSingle();
             if (referrer) {
               referrer_name = `${referrer.first_name} ${referrer.last_name}`;
             }
@@ -75,13 +82,19 @@ export function EZLeads() {
               .from('0012-sr-members')
               .select('first_name, last_name')
               .eq('id', lead.assigned_to)
-              .single();
+              .maybeSingle();
             if (assignee) {
               assigned_name = `${assignee.first_name} ${assignee.last_name}`;
             }
           }
 
-          return { ...lead, referrer_name, assigned_name };
+          return {
+            ...lead,
+            tags: lead.tags || [],
+            email_opt_in: lead.email_opt_in ?? true,
+            referrer_name,
+            assigned_name,
+          };
         })
       );
 
@@ -104,10 +117,9 @@ export function EZLeads() {
   const getDaysInStage = (lead: Lead) => {
     const stageDate = lead.prospect_date;
     if (!stageDate) return 0;
-    const days = Math.floor(
+    return Math.floor(
       (new Date().getTime() - new Date(stageDate).getTime()) / (1000 * 60 * 60 * 24)
     );
-    return days;
   };
 
   const getStageColor = (stage: string) => {
@@ -119,11 +131,16 @@ export function EZLeads() {
 
   if (loading) {
     return (
-      <Layout>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
+      <Layout showHeader={false}>
+        <div className="min-h-screen bg-[#F5F7FA]">
+          <div className="bg-[#1B2A4A] px-4 py-4 flex items-center gap-4">
+            <button onClick={() => navigate(-1)} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10">
+              <ArrowLeft className="w-6 h-6 text-white" />
+            </button>
+            <h1 className="text-xl font-bold text-white">EZ-Leads</h1>
+          </div>
+          <div className="flex items-center justify-center py-12">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#1B2A4A]"></div>
-            <p className="mt-4 text-gray-600">Loading leads...</p>
           </div>
         </div>
       </Layout>
@@ -136,59 +153,73 @@ export function EZLeads() {
         <div className="bg-[#1B2A4A] px-4 py-4">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center">
-              <button
-                onClick={() => navigate(-1)}
-                className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10"
-              >
+              <button onClick={() => navigate(-1)} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10">
                 <ArrowLeft className="w-6 h-6 text-white" />
               </button>
               <h1 className="text-xl font-bold text-white ml-4">EZ-Leads</h1>
             </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setViewMode('pipeline')}
-                className={`p-2 rounded-lg ${
-                  viewMode === 'pipeline' ? 'bg-white/20' : 'hover:bg-white/10'
-                }`}
-              >
-                <LayoutGrid className="w-5 h-5 text-white" />
-              </button>
-              <button
-                onClick={() => setViewMode('list')}
-                className={`p-2 rounded-lg ${
-                  viewMode === 'list' ? 'bg-white/20' : 'hover:bg-white/10'
-                }`}
-              >
-                <List className="w-5 h-5 text-white" />
-              </button>
-            </div>
+            {topView === 'pipeline' && (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setPipelineMode('kanban')}
+                  className={`p-2 rounded-lg ${pipelineMode === 'kanban' ? 'bg-white/20' : 'hover:bg-white/10'}`}
+                >
+                  <LayoutGrid className="w-5 h-5 text-white" />
+                </button>
+                <button
+                  onClick={() => setPipelineMode('list')}
+                  className={`p-2 rounded-lg ${pipelineMode === 'list' ? 'bg-white/20' : 'hover:bg-white/10'}`}
+                >
+                  <List className="w-5 h-5 text-white" />
+                </button>
+              </div>
+            )}
           </div>
 
-          <div className="overflow-x-auto pb-2">
-            <div className="flex gap-2 min-w-max">
-              {STAGES.map((stage) => (
-                <div
-                  key={stage.key}
-                  className="px-3 py-1 bg-white/20 rounded-full text-white text-sm whitespace-nowrap"
-                >
-                  {stage.label} ({stageCounts[stage.key] || 0})
-                </div>
-              ))}
-            </div>
-            <div className="flex gap-2 mt-2">
-              {INACTIVE_STAGES.map((stage) => (
-                <div
-                  key={stage.key}
-                  className="px-3 py-1 bg-white/10 rounded-full text-white/70 text-xs whitespace-nowrap"
-                >
-                  {stage.label} ({stageCounts[stage.key] || 0})
-                </div>
-              ))}
-            </div>
+          <div className="flex gap-2 mb-4">
+            <button
+              onClick={() => setTopView('pipeline')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
+                topView === 'pipeline' ? 'bg-white text-[#1B2A4A]' : 'bg-white/20 text-white'
+              }`}
+            >
+              <LayoutGrid className="w-4 h-4" />
+              Pipeline View
+            </button>
+            <button
+              onClick={() => setTopView('contacts')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
+                topView === 'contacts' ? 'bg-white text-[#1B2A4A]' : 'bg-white/20 text-white'
+              }`}
+            >
+              <BookUser className="w-4 h-4" />
+              Contact List
+            </button>
           </div>
+
+          {topView === 'pipeline' && (
+            <div className="overflow-x-auto pb-2">
+              <div className="flex gap-2 min-w-max">
+                {STAGES.map((stage) => (
+                  <div key={stage.key} className="px-3 py-1 bg-white/20 rounded-full text-white text-sm whitespace-nowrap">
+                    {stage.label} ({stageCounts[stage.key] || 0})
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2 mt-2">
+                {INACTIVE_STAGES.map((stage) => (
+                  <div key={stage.key} className="px-3 py-1 bg-white/10 rounded-full text-white/70 text-xs whitespace-nowrap">
+                    {stage.label} ({stageCounts[stage.key] || 0})
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
-        {viewMode === 'pipeline' ? (
+        {topView === 'contacts' ? (
+          <ContactListView leads={leads} isAdmin={isAdmin} onRefresh={loadLeads} />
+        ) : pipelineMode === 'kanban' ? (
           <div className="p-4 overflow-x-auto">
             <div className="flex gap-4 min-w-max pb-4">
               {STAGES.map((stage) => (
@@ -203,9 +234,7 @@ export function EZLeads() {
                         <div
                           key={lead.id}
                           onClick={() => navigate(`/leads/${lead.id}`)}
-                          className={`bg-white rounded-lg p-4 border-l-4 ${getStageColor(
-                            lead.stage
-                          )} shadow-sm hover:shadow-md cursor-pointer transition-shadow`}
+                          className={`bg-white rounded-lg p-4 border-l-4 ${getStageColor(lead.stage)} shadow-sm hover:shadow-md cursor-pointer transition-shadow`}
                         >
                           <h4 className="font-bold text-[#1B2A4A] mb-2">
                             {lead.first_name} {lead.last_name}
@@ -229,13 +258,20 @@ export function EZLeads() {
                                 <span>{lead.phone}</span>
                               </div>
                             )}
+                            {(lead.tags || []).length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {lead.tags.map((tag) => (
+                                  <span key={tag} className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded text-xs">
+                                    {tag}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                             <div className="text-xs text-gray-500 mt-2">
                               {getDaysInStage(lead)} days in stage
                             </div>
                             {lead.assigned_name && (
-                              <div className="text-xs text-gray-500">
-                                Assigned: {lead.assigned_name}
-                              </div>
+                              <div className="text-xs text-gray-500">Assigned: {lead.assigned_name}</div>
                             )}
                           </div>
                         </div>
@@ -261,30 +297,18 @@ export function EZLeads() {
                   </thead>
                   <tbody className="divide-y divide-gray-200">
                     {leads.map((lead) => (
-                      <tr
-                        key={lead.id}
-                        onClick={() => navigate(`/leads/${lead.id}`)}
-                        className="hover:bg-gray-50 cursor-pointer"
-                      >
+                      <tr key={lead.id} onClick={() => navigate(`/leads/${lead.id}`)} className="hover:bg-gray-50 cursor-pointer">
                         <td className="px-4 py-3 text-sm text-gray-800">
                           {lead.first_name} {lead.last_name}
                         </td>
                         <td className="px-4 py-3">
-                          <span
-                            className={`inline-block px-2 py-1 text-xs font-medium rounded border-l-4 ${getStageColor(
-                              lead.stage
-                            )}`}
-                          >
+                          <span className={`inline-block px-2 py-1 text-xs font-medium rounded border-l-4 ${getStageColor(lead.stage)}`}>
                             {lead.stage}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-600">{lead.source}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600">
-                          {lead.referrer_name || '-'}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">
-                          {getDaysInStage(lead)}
-                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600">{lead.referrer_name || '-'}</td>
+                        <td className="px-4 py-3 text-sm text-gray-600">{getDaysInStage(lead)}</td>
                       </tr>
                     ))}
                   </tbody>

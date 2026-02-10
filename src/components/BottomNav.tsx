@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 export function BottomNav() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isAdmin } = useAuth();
+  const { isLeader } = useAuth();
 
   const navItems = [
     { key: 'home', label: 'Home', icon: Home, path: '/' },
@@ -15,7 +15,7 @@ export function BottomNav() {
       key: 'activity',
       label: 'Activity',
       icon: Activity,
-      path: isAdmin ? '/leads' : '/refer',
+      path: isLeader ? '/leads' : '/refer',
     },
     { key: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
   ];
