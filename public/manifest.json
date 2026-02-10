@@ -1,0 +1,25 @@
+{
+  "name": "Sandy Rotary Club",
+  "short_name": "Sandy Rotary",
+  "description": "Mobile app for Sandy Rotary Club members",
+  "theme_color": "#1B2A4A",
+  "background_color": "#FFFFFF",
+  "display": "standalone",
+  "orientation": "portrait",
+  "scope": "/",
+  "start_url": "/",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
