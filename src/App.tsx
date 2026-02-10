@@ -20,6 +20,7 @@ import { ClubInfo } from './pages/placeholder/ClubInfo';
 import { Birthdays } from './pages/placeholder/Birthdays';
 import { Settings } from './pages/Settings';
 import { AddEvent } from './pages/placeholder/admin/AddEvent';
+import { AttendancePlans } from './pages/AttendancePlans';
 import { Attendance } from './pages/placeholder/admin/Attendance';
 import { ManageMembers } from './pages/placeholder/admin/ManageMembers';
 import { StoryForm } from './pages/admin/StoryForm';
@@ -57,7 +58,7 @@ function App() {
           <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
           <Route path="/refer" element={<ProtectedRoute><ReferSomeone /></ProtectedRoute>} />
           <Route path="/prospective-members" element={<ProtectedRoute><ProspectiveMembers /></ProtectedRoute>} />
-          <Route path="/attendance" element={<ProtectedRoute><Attendance /></ProtectedRoute>} />
+          <Route path="/attendance" element={<ProtectedRoute><AttendancePlans /></ProtectedRoute>} />
 
           <Route path="/leads" element={<ProtectedRoute requireLeader><EZLeads /></ProtectedRoute>} />
           <Route path="/leads/:id" element={<ProtectedRoute requireLeader><LeadDetail /></ProtectedRoute>} />

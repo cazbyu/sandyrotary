@@ -142,7 +142,8 @@ export function Attendance() {
         const status = getAttendanceStatus(
           record.rsvp_status,
           record.actually_attended,
-          new Date(selectedMeeting.start_date)
+          new Date(selectedMeeting.start_date),
+          true
         );
         return [
           `${record.member.first_name} ${record.member.last_name}`,
@@ -239,7 +240,7 @@ export function Attendance() {
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-gray-600">{stats.optedOut}</div>
-                <div className="text-xs text-gray-600">Opted Out</div>
+                <div className="text-xs text-gray-600">Busy</div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-red-600">{stats.noShows}</div>

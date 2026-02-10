@@ -298,8 +298,8 @@ export function CalendarPage() {
                                       <div className="flex items-center justify-between mb-3">
                                         <span className="text-gray-700">
                                           {rsvpStatus === 'attending'
-                                            ? '✅ You are attending'
-                                            : '🚫 You opted out'}
+                                            ? 'You are attending'
+                                            : 'Busy'}
                                         </span>
                                         <button
                                           onClick={(e) => {

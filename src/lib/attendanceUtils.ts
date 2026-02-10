@@ -26,7 +26,8 @@ export function formatDeadline(meetingDate: Date, daysBeforeDeadline: number = 5
 export function getAttendanceStatus(
   rsvpStatus: string,
   actuallyAttended: boolean | null,
-  meetingDate: Date
+  meetingDate: Date,
+  isLeaderView: boolean = false
 ): {
   label: string;
   color: string;
@@ -35,20 +36,26 @@ export function getAttendanceStatus(
   const isPast = new Date() > new Date(meetingDate);
 
   if (rsvpStatus === 'not_attending') {
-    return { label: 'Opted Out', color: 'bg-gray-500', icon: '🚫' };
+    return { label: 'Busy', color: 'bg-gray-500', icon: '' };
   }
 
   if (actuallyAttended === true) {
-    return { label: 'Attended', color: 'bg-green-500', icon: '✅' };
+    return { label: 'Attended', color: 'bg-green-500', icon: '' };
   }
 
   if (actuallyAttended === false) {
-    return { label: 'No-Show', color: 'bg-red-500', icon: '❌' };
+    if (isLeaderView) {
+      return { label: 'No-Show', color: 'bg-red-500', icon: '' };
+    }
+    return { label: '\u2014', color: 'bg-gray-400', icon: '' };
   }
 
   if (isPast) {
-    return { label: 'Pending Review', color: 'bg-yellow-500', icon: '⏳' };
+    if (isLeaderView) {
+      return { label: 'Pending Review', color: 'bg-yellow-500', icon: '' };
+    }
+    return { label: '\u2014', color: 'bg-gray-400', icon: '' };
   }
 
-  return { label: 'Attending', color: 'bg-blue-500', icon: '✅' };
+  return { label: 'Attending', color: 'bg-blue-500', icon: '' };
 }
