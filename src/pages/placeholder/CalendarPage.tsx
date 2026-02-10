@@ -12,10 +12,11 @@ interface CalendarEvent {
   category: string;
   start_date: string;
   end_date: string;
-  start_time?: string;
-  end_time?: string;
   description?: string;
-  address?: string;
+  address_line1?: string;
+  address_city?: string;
+  address_state?: string;
+  address_zip?: string;
   enable_rsvp: boolean;
   status: string;
 }
@@ -148,13 +149,18 @@ export function CalendarPage() {
     return { month, day };
   };
 
-  const formatTime = (timeStr?: string) => {
-    if (!timeStr) return '';
-    const [hours, minutes] = timeStr.split(':');
-    const hour = parseInt(hours);
-    const ampm = hour >= 12 ? 'PM' : 'AM';
-    const displayHour = hour % 12 || 12;
-    return `${displayHour}:${minutes} ${ampm}`;
+  const formatTimeFromTimestamp = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  };
+
+  const buildAddress = (event: CalendarEvent) => {
+    const parts = [event.address_line1, event.address_city, event.address_state, event.address_zip].filter(Boolean);
+    return parts.length > 0 ? parts.join(', ') : null;
   };
 
   const handleGetDirections = (address: string) => {
@@ -246,13 +252,10 @@ export function CalendarPage() {
                           >
                             {event.category}
                           </span>
-                          {(event.start_time || event.end_time) && (
-                            <p className="text-sm text-gray-600">
-                              {event.start_time && formatTime(event.start_time)}
-                              {event.start_time && event.end_time && ' - '}
-                              {event.end_time && formatTime(event.end_time)}
-                            </p>
-                          )}
+                          <p className="text-sm text-gray-600">
+                            {formatTimeFromTimestamp(event.start_date)}
+                            {event.end_date && ` - ${formatTimeFromTimestamp(event.end_date)}`}
+                          </p>
                           {!isExpanded && event.description && (
                             <p className="text-sm text-gray-600 mt-2 line-clamp-2">
                               {event.description}
@@ -341,19 +344,23 @@ export function CalendarPage() {
                               </div>
                             )}
 
-                            {event.address && (
-                              <div>
-                                <h4 className="font-semibold text-gray-800 mb-2">Location</h4>
-                                <p className="text-gray-700 mb-2">{event.address}</p>
-                                <button
-                                  onClick={() => handleGetDirections(event.address!)}
-                                  className="flex items-center gap-2 py-2 px-4 border-2 border-[#1B2A4A] text-[#1B2A4A] font-semibold rounded-lg hover:bg-[#1B2A4A] hover:text-white transition-colors"
-                                >
-                                  <MapPin className="w-4 h-4" />
-                                  Get Directions
-                                </button>
-                              </div>
-                            )}
+                            {(() => {
+                              const address = buildAddress(event);
+                              if (!address) return null;
+                              return (
+                                <div>
+                                  <h4 className="font-semibold text-gray-800 mb-2">Location</h4>
+                                  <p className="text-gray-700 mb-2">{address}</p>
+                                  <button
+                                    onClick={() => handleGetDirections(address)}
+                                    className="flex items-center gap-2 py-2 px-4 border-2 border-[#1B2A4A] text-[#1B2A4A] font-semibold rounded-lg hover:bg-[#1B2A4A] hover:text-white transition-colors"
+                                  >
+                                    <MapPin className="w-4 h-4" />
+                                    Get Directions
+                                  </button>
+                                </div>
+                              );
+                            })()}
                           </div>
                         </div>
                       )}

@@ -9,7 +9,6 @@ interface Meeting {
   id: string;
   event_name: string;
   start_date: string;
-  start_time?: string;
 }
 
 interface AttendanceRecord {
@@ -47,7 +46,7 @@ export function Attendance() {
     try {
       const { data, error } = await supabase
         .from('0012-sr-calendar-events')
-        .select('id, event_name, start_date, start_time')
+        .select('id, event_name, start_date')
         .eq('category', 'Club Meeting')
         .eq('status', 'Active')
         .order('start_date', { ascending: false });
