@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
 import { User } from '@supabase/supabase-js';
 import { supabase, Member } from '../lib/supabase';
 
@@ -18,24 +18,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [member, setMember] = useState<Member | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const authCompleted = useRef(false);
+  const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    const loadingTimeout = setTimeout(() => {
-      if (loading) {
+    loadingTimeoutRef.current = setTimeout(() => {
+      if (!authCompleted.current && loading) {
         console.error('Auth loading timeout - forcing completion');
         setLoading(false);
         setError('Authentication took too long. Please try again.');
         supabase.auth.signOut();
         setUser(null);
         setMember(null);
+        authCompleted.current = true;
       }
-    }, 5000);
+    }, 15000);
 
     supabase.auth.getSession().then(({ data: { session }, error: sessionError }) => {
       if (sessionError) {
         console.error('Session error:', sessionError);
         setError('Failed to connect to authentication service.');
         setLoading(false);
+        authCompleted.current = true;
+        if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
         return;
       }
 
@@ -44,13 +49,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         fetchMember(session.user.id, session.user.email!);
       } else {
         setLoading(false);
-        clearTimeout(loadingTimeout);
+        authCompleted.current = true;
+        if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
       }
     }).catch((err) => {
       console.error('Failed to get session:', err);
       setError('Failed to connect. Please check your internet connection.');
       setLoading(false);
-      clearTimeout(loadingTimeout);
+      authCompleted.current = true;
+      if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -62,12 +69,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setMember(null);
           setLoading(false);
           setError(null);
+          authCompleted.current = true;
         }
       })();
     });
 
     return () => {
-      clearTimeout(loadingTimeout);
+      if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
       subscription.unsubscribe();
     };
   }, []);
@@ -98,6 +106,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setMember(member);
         setError(null);
         setLoading(false);
+        authCompleted.current = true;
+        if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
         return;
       }
 
@@ -127,12 +137,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         setMember(updated);
         setError(null);
+        authCompleted.current = true;
+        if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
       } else {
         console.log('No member record found for user');
         setError('Your account is not registered as a club member. Please contact your administrator.');
         await supabase.auth.signOut();
         setMember(null);
         setUser(null);
+        authCompleted.current = true;
+        if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
       }
     } catch (error) {
       console.error('Error fetching member:', error);
@@ -140,6 +154,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await supabase.auth.signOut();
       setMember(null);
       setUser(null);
+      authCompleted.current = true;
+      if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
     } finally {
       setLoading(false);
     }
