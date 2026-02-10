@@ -7,7 +7,7 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRouteProps) {
-  const { user, isAdmin, loading } = useAuth();
+  const { user, isAdmin, loading, error } = useAuth();
 
   if (loading) {
     return (
@@ -18,6 +18,10 @@ export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRout
         </div>
       </div>
     );
+  }
+
+  if (error) {
+    return <Navigate to="/login" state={{ error }} replace />;
   }
 
   if (!user) {
