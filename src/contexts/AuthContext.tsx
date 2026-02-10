@@ -21,16 +21,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       if (session?.user) {
-        fetchMember(session.user.email!);
+        fetchMember(session.user.id, session.user.email!);
       } else {
         setLoading(false);
       }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setUser(session?.user ?? null);
       if (session?.user) {
-        fetchMember(session.user.email!);
+        await fetchMember(session.user.id, session.user.email!);
       } else {
         setMember(null);
         setLoading(false);
@@ -40,21 +40,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const fetchMember = async (email: string) => {
+  const fetchMember = async (userId: string, userEmail: string) => {
     try {
-      const { data, error } = await supabase
+      let { data: member } = await supabase
         .from('0012-sr-members')
         .select('*')
-        .eq('email', email)
+        .eq('id', userId)
         .maybeSingle();
 
-      if (error) {
-        console.error('Error fetching member:', error);
+      if (member) {
+        setMember(member);
+        setLoading(false);
+        return;
+      }
+
+      const { data: memberByEmail } = await supabase
+        .from('0012-sr-members')
+        .select('*')
+        .eq('home_email', userEmail)
+        .maybeSingle();
+
+      if (memberByEmail) {
+        const { data: updated } = await supabase
+          .from('0012-sr-members')
+          .update({ id: userId, updated_at: new Date().toISOString() })
+          .eq('home_email', userEmail)
+          .select()
+          .maybeSingle();
+
+        setMember(updated);
       } else {
-        setMember(data);
+        await supabase.auth.signOut();
+        setMember(null);
+        setUser(null);
       }
     } catch (error) {
       console.error('Error fetching member:', error);
+      await supabase.auth.signOut();
+      setMember(null);
+      setUser(null);
     } finally {
       setLoading(false);
     }

@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Login } from './pages/Login';
+import { AccessDenied } from './pages/AccessDenied';
 import { Home } from './pages/Home';
 import { MyData } from './pages/placeholder/MyData';
 import { Members } from './pages/placeholder/Members';
@@ -17,7 +18,7 @@ import { Message } from './pages/placeholder/Message';
 import { Sponsors } from './pages/placeholder/Sponsors';
 import { ClubInfo } from './pages/placeholder/ClubInfo';
 import { Birthdays } from './pages/placeholder/Birthdays';
-import { Settings } from './pages/placeholder/Settings';
+import { Settings } from './pages/Settings';
 import { AddEvent } from './pages/placeholder/admin/AddEvent';
 import { Attendance } from './pages/placeholder/admin/Attendance';
 import { ManageMembers } from './pages/placeholder/admin/ManageMembers';
@@ -32,6 +33,7 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/access-denied" element={<AccessDenied />} />
 
           <Route
             path="/"

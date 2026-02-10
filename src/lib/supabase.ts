@@ -7,12 +7,16 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export interface Member {
   id: string;
-  email: string;
   first_name: string;
   last_name: string;
   is_admin: boolean;
   district?: string;
   club_name?: string;
+  home_email: string;
+  profile_photo_url?: string;
+  member_status?: string;
+  member_title?: string;
+  share_contact_info?: boolean;
   created_at: string;
   updated_at: string;
 }
