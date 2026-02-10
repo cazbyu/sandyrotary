@@ -22,7 +22,7 @@ interface FormData {
   mobile_phone: string;
   home_phone: string;
   office_phone: string;
-  preferred_email: string;
+  preferred_email_type: string;
   home_email: string;
   office_email: string;
   home_address_1: string;
@@ -68,7 +68,7 @@ export function MyData() {
     mobile_phone: '',
     home_phone: '',
     office_phone: '',
-    preferred_email: 'home',
+    preferred_email_type: 'home',
     home_email: '',
     office_email: '',
     home_address_1: '',
@@ -126,7 +126,7 @@ export function MyData() {
           mobile_phone: memberData.mobile_phone || '',
           home_phone: memberData.home_phone || '',
           office_phone: memberData.office_phone || '',
-          preferred_email: memberData.preferred_email || 'home',
+          preferred_email_type: memberData.preferred_email_type || 'home',
           home_email: memberData.home_email || '',
           office_email: memberData.office_email || '',
           home_address_1: memberData.home_address_1 || '',
@@ -258,7 +258,7 @@ export function MyData() {
           mobile_phone: formData.mobile_phone,
           home_phone: formData.home_phone,
           office_phone: formData.office_phone,
-          preferred_email: formData.preferred_email,
+          preferred_email_type: formData.preferred_email_type,
           home_email: formData.home_email,
           office_email: formData.office_email,
           home_address_1: formData.home_address_1,
@@ -508,8 +508,8 @@ export function MyData() {
               <div>
                 <label className="block text-sm font-medium text-gray-600 mb-1">Preferred Email</label>
                 <select
-                  value={formData.preferred_email}
-                  onChange={(e) => handleChange('preferred_email', e.target.value)}
+                  value={formData.preferred_email_type}
+                  onChange={(e) => handleChange('preferred_email_type', e.target.value)}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#D94F4F] focus:border-transparent"
                 >
                   <option value="home">Home</option>
