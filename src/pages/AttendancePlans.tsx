@@ -67,6 +67,20 @@ function formatDisplayDate(date: Date): string {
   });
 }
 
+interface CalendarEvent {
+  id: string;
+  event_name: string;
+  start_date: string;
+}
+
+interface RowItem {
+  dateStr: string;
+  date: Date;
+  isMeeting: boolean;
+  isSocial: boolean;
+  event?: CalendarEvent;
+}
+
 export function AttendancePlans() {
   const navigate = useNavigate();
   const { member } = useAuth();
@@ -74,26 +88,83 @@ export function AttendancePlans() {
   const [plans, setPlans] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState<string | null>(null);
+  const [rows, setRows] = useState<RowItem[]>([]);
 
   const wednesdays = generateWednesdays(windowStart, 4);
+  const windowEndDate = new Date(wednesdays[wednesdays.length - 1]);
+  windowEndDate.setHours(23, 59, 59, 999);
+  const windowStartDate = new Date(windowStart);
+  windowStartDate.setHours(0, 0, 0, 0);
+
+  const buildRows = useCallback(
+    (evts: CalendarEvent[]): RowItem[] => {
+      const meetingDateStrs = wednesdays.map(toDateString);
+      const items: RowItem[] = wednesdays.map((date) => ({
+        dateStr: toDateString(date),
+        date,
+        isMeeting: true,
+        isSocial: isFourthWednesday(date),
+      }));
+
+      evts.forEach((evt) => {
+        const evtDate = new Date(evt.start_date);
+        evtDate.setHours(12, 0, 0, 0);
+        const evtDateStr = toDateString(evtDate);
+        if (!meetingDateStrs.includes(evtDateStr)) {
+          items.push({
+            dateStr: evtDateStr,
+            date: evtDate,
+            isMeeting: false,
+            isSocial: false,
+            event: evt,
+          });
+        }
+      });
+
+      items.sort((a, b) => a.dateStr.localeCompare(b.dateStr));
+      return items;
+    },
+    [windowStart]
+  );
 
   const loadPlans = useCallback(async () => {
     if (!member) return;
-    const dateStrings = wednesdays.map(toDateString);
     try {
-      const { data, error } = await supabase
-        .from('0012-sr-attendance-plans')
-        .select('meeting_date, is_attending')
-        .eq('member_id', member.id)
-        .in('meeting_date', dateStrings);
+      const startStr = toDateString(windowStart);
+      const endStr = toDateString(wednesdays[wednesdays.length - 1]);
 
-      if (error) throw error;
+      const [plansRes, eventsRes] = await Promise.all([
+        supabase
+          .from('0012-sr-attendance-plans')
+          .select('meeting_date, is_attending')
+          .eq('member_id', member.id)
+          .gte('meeting_date', startStr)
+          .lte('meeting_date', endStr),
+        supabase
+          .from('0012-sr-calendar-events')
+          .select('id, event_name, start_date')
+          .gte('start_date', windowStartDate.toISOString())
+          .lte('start_date', windowEndDate.toISOString())
+          .eq('status', 'Active'),
+      ]);
+
+      if (plansRes.error) throw plansRes.error;
+      if (eventsRes.error) throw eventsRes.error;
 
       const planMap: Record<string, boolean> = {};
-      (data || []).forEach((p: { meeting_date: string; is_attending: boolean }) => {
+      (plansRes.data || []).forEach((p: { meeting_date: string; is_attending: boolean }) => {
         planMap[p.meeting_date] = p.is_attending;
       });
       setPlans(planMap);
+
+      const evts: CalendarEvent[] = (eventsRes.data || []).map(
+        (e: { id: string; event_name: string; start_date: string }) => ({
+          id: e.id,
+          event_name: e.event_name,
+          start_date: e.start_date,
+        })
+      );
+      setRows(buildRows(evts));
     } catch (error) {
       console.error('Error loading plans:', error);
     } finally {
@@ -106,10 +177,11 @@ export function AttendancePlans() {
     loadPlans();
   }, [loadPlans]);
 
-  const toggleAttendance = async (date: Date) => {
+  const toggleAttendance = async (row: RowItem) => {
     if (!member) return;
-    const dateStr = toDateString(date);
-    const currentValue = plans[dateStr] ?? true;
+    const { dateStr, event } = row;
+    const defaultValue = row.isMeeting ? true : false;
+    const currentValue = plans[dateStr] ?? defaultValue;
     const newValue = !currentValue;
 
     setToggling(dateStr);
@@ -123,12 +195,21 @@ export function AttendancePlans() {
             member_id: member.id,
             meeting_date: dateStr,
             is_attending: newValue,
+            event_id: event?.id ?? null,
             updated_at: new Date().toISOString(),
           },
           { onConflict: 'member_id,meeting_date' }
         );
 
       if (error) throw error;
+
+      await supabase.from('0012-sr-attendance-plan-history').insert({
+        member_id: member.id,
+        meeting_date: dateStr,
+        event_id: event?.id ?? null,
+        is_attending: newValue,
+        toggled_by: member.id,
+      });
     } catch (error) {
       console.error('Error toggling attendance:', error);
       setPlans((prev) => ({ ...prev, [dateStr]: currentValue }));
@@ -188,12 +269,12 @@ export function AttendancePlans() {
             </div>
           ) : (
             <div className="space-y-3">
-              {wednesdays.map((date) => {
-                const dateStr = toDateString(date);
-                const isSocial = isFourthWednesday(date);
+              {rows.map((row) => {
+                const { dateStr, date, isMeeting, isSocial, event } = row;
                 const past = isPastMeeting(date);
                 const locked = isMeetingLocked(date);
-                const isAttending = plans[dateStr] ?? true;
+                const defaultValue = isMeeting ? true : false;
+                const isAttending = plans[dateStr] ?? defaultValue;
                 const isTogglingThis = toggling === dateStr;
 
                 if (isSocial) {
@@ -216,24 +297,35 @@ export function AttendancePlans() {
                   return (
                     <div
                       key={dateStr}
-                      className="bg-white rounded-xl shadow-sm border border-gray-100 px-5 py-4 flex items-center justify-between"
+                      className={`rounded-xl shadow-sm border px-5 py-4 flex items-center justify-between ${
+                        event ? 'bg-blue-50 border-blue-100' : 'bg-white border-gray-100'
+                      }`}
                     >
-                      <span className="font-medium text-gray-500">
-                        {formatDisplayDate(date)}
-                      </span>
+                      <div>
+                        <span className="font-medium text-gray-500">
+                          {formatDisplayDate(date)}
+                        </span>
+                        {event && (
+                          <span className="ml-2 text-sm text-blue-500 font-medium">
+                            ({event.event_name})
+                          </span>
+                        )}
+                      </div>
                       {isAttending ? (
                         <span className="flex items-center gap-1.5 text-sm font-semibold text-green-600">
                           <Check className="w-4 h-4" />
-                          Attended
+                          {isMeeting ? 'Attended' : 'Went'}
                         </span>
                       ) : (
-                        <span className="text-sm font-semibold text-gray-400">Busy</span>
+                        <span className="text-sm font-semibold text-gray-400">
+                          {isMeeting ? 'Busy' : 'Skipped'}
+                        </span>
                       )}
                     </div>
                   );
                 }
 
-                if (locked) {
+                if (locked && isMeeting) {
                   return (
                     <div
                       key={dateStr}
@@ -263,19 +355,30 @@ export function AttendancePlans() {
                 return (
                   <div
                     key={dateStr}
-                    className="bg-white rounded-xl shadow-sm border border-gray-100 px-5 py-4 flex items-center justify-between"
+                    className={`rounded-xl shadow-sm border px-5 py-4 flex items-center justify-between ${
+                      event ? 'bg-blue-50 border-blue-100' : 'bg-white border-gray-100'
+                    }`}
                   >
-                    <span className="font-medium text-gray-800">
-                      {formatDisplayDate(date)}
-                    </span>
+                    <div>
+                      <span className="font-medium text-gray-800">
+                        {formatDisplayDate(date)}
+                      </span>
+                      {event && (
+                        <span className="ml-2 text-sm text-blue-600 font-medium">
+                          ({event.event_name})
+                        </span>
+                      )}
+                    </div>
                     <button
-                      onClick={() => toggleAttendance(date)}
+                      onClick={() => toggleAttendance(row)}
                       disabled={isTogglingThis}
                       className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
                         isTogglingThis
                           ? 'opacity-60 cursor-wait'
                           : isAttending
                           ? 'bg-green-500'
+                          : event
+                          ? 'bg-yellow-400'
                           : 'bg-gray-300'
                       }`}
                     >

@@ -36,12 +36,12 @@ function toDateString(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-function isPastMeeting(date: Date): boolean {
+function isTodayOrPast(date: Date): boolean {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const meetingDay = new Date(date);
   meetingDay.setHours(0, 0, 0, 0);
-  return today > meetingDay;
+  return today >= meetingDay;
 }
 
 function formatColumnDate(date: Date): string {
@@ -55,12 +55,27 @@ interface AttendancePlan {
   member_id: string;
   meeting_date: string;
   is_attending: boolean;
+  event_id?: string | null;
 }
 
 interface AttendanceRecord {
   member_id: string;
   meeting_date: string;
   status: 'attended' | 'busy' | 'no_show';
+}
+
+interface CalendarEvent {
+  id: string;
+  event_name: string;
+  start_date: string;
+}
+
+interface Column {
+  dateStr: string;
+  date: Date;
+  isMeeting: boolean;
+  isSocial: boolean;
+  event?: CalendarEvent;
 }
 
 type CellStatus = 'attending' | 'busy' | 'attended' | 'no_show' | 'social' | null;
@@ -72,14 +87,58 @@ export function Attendance() {
   const [members, setMembers] = useState<Member[]>([]);
   const [plans, setPlans] = useState<Record<string, AttendancePlan[]>>({});
   const [records, setRecords] = useState<Record<string, AttendanceRecord[]>>({});
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
 
   const wednesdays = generateWednesdays(windowStart, 4);
 
+  const windowEndDate = new Date(wednesdays[wednesdays.length - 1]);
+  windowEndDate.setHours(23, 59, 59, 999);
+  const windowStartDate = new Date(windowStart);
+  windowStartDate.setHours(0, 0, 0, 0);
+
+  const columns: Column[] = [];
+  const meetingDateStrs = wednesdays.map(toDateString);
+
+  const buildColumns = useCallback(
+    (evts: CalendarEvent[]): Column[] => {
+      const cols: Column[] = wednesdays.map((date) => ({
+        dateStr: toDateString(date),
+        date,
+        isMeeting: true,
+        isSocial: isFourthWednesday(date),
+      }));
+
+      evts.forEach((evt) => {
+        const evtDate = new Date(evt.start_date);
+        evtDate.setHours(12, 0, 0, 0);
+        const evtDateStr = toDateString(evtDate);
+        if (!meetingDateStrs.includes(evtDateStr)) {
+          cols.push({
+            dateStr: evtDateStr,
+            date: evtDate,
+            isMeeting: false,
+            isSocial: false,
+            event: evt,
+          });
+        }
+      });
+
+      cols.sort((a, b) => a.dateStr.localeCompare(b.dateStr));
+      return cols;
+    },
+    [windowStart]
+  );
+
+  const [columnList, setColumnList] = useState<Column[]>([]);
+
   const loadData = useCallback(async () => {
     try {
-      const [membersRes, plansRes, recordsRes] = await Promise.all([
+      const startStr = toDateString(windowStart);
+      const endStr = toDateString(wednesdays[wednesdays.length - 1]);
+
+      const [membersRes, plansRes, recordsRes, eventsRes] = await Promise.all([
         supabase
           .from('0012-sr-members')
           .select('*')
@@ -87,17 +146,26 @@ export function Attendance() {
           .order('last_name', { ascending: true }),
         supabase
           .from('0012-sr-attendance-plans')
-          .select('member_id, meeting_date, is_attending')
-          .in('meeting_date', wednesdays.map(toDateString)),
+          .select('member_id, meeting_date, is_attending, event_id')
+          .gte('meeting_date', startStr)
+          .lte('meeting_date', endStr),
         supabase
           .from('0012-sr-attendance-records')
           .select('member_id, meeting_date, status')
-          .in('meeting_date', wednesdays.map(toDateString)),
+          .gte('meeting_date', startStr)
+          .lte('meeting_date', endStr),
+        supabase
+          .from('0012-sr-calendar-events')
+          .select('id, event_name, start_date')
+          .gte('start_date', windowStartDate.toISOString())
+          .lte('start_date', windowEndDate.toISOString())
+          .eq('status', 'Active'),
       ]);
 
       if (membersRes.error) throw membersRes.error;
       if (plansRes.error) throw plansRes.error;
       if (recordsRes.error) throw recordsRes.error;
+      if (eventsRes.error) throw eventsRes.error;
 
       setMembers(membersRes.data || []);
 
@@ -114,6 +182,14 @@ export function Attendance() {
         recordsMap[r.meeting_date].push(r);
       });
       setRecords(recordsMap);
+
+      const evts: CalendarEvent[] = (eventsRes.data || []).map((e: { id: string; event_name: string; start_date: string }) => ({
+        id: e.id,
+        event_name: e.event_name,
+        start_date: e.start_date,
+      }));
+      setEvents(evts);
+      setColumnList(buildColumns(evts));
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -126,30 +202,43 @@ export function Attendance() {
     loadData();
   }, [loadData]);
 
-  const getCellStatus = (memberId: string, date: Date): CellStatus => {
-    if (isFourthWednesday(date)) return 'social';
+  useEffect(() => {
+    setColumnList(buildColumns(events));
+  }, [events, windowStart]);
 
-    const dateStr = toDateString(date);
-    const isPast = isPastMeeting(date);
+  const getCellStatus = (memberId: string, col: Column): CellStatus => {
+    if (col.isSocial) return 'social';
 
-    if (isPast) {
+    const { dateStr } = col;
+    const isActive = isTodayOrPast(col.date);
+
+    if (isActive) {
       const record = records[dateStr]?.find((r) => r.member_id === memberId);
       if (record) return record.status;
 
       const plan = plans[dateStr]?.find((p) => p.member_id === memberId);
       if (plan && !plan.is_attending) return 'busy';
 
+      if (!col.isMeeting) return 'busy';
+
       return null;
     } else {
       const plan = plans[dateStr]?.find((p) => p.member_id === memberId);
+      if (!col.isMeeting) {
+        return plan ? (plan.is_attending ? 'attending' : 'busy') : 'busy';
+      }
       return plan ? (plan.is_attending ? 'attending' : 'busy') : 'attending';
     }
   };
 
-  const updateAttendancePlan = async (memberId: string, date: Date, isAttending: boolean) => {
+  const updateAttendancePlan = async (
+    memberId: string,
+    col: Column,
+    isAttending: boolean
+  ) => {
     if (!currentUser) return;
 
-    const dateStr = toDateString(date);
+    const { dateStr } = col;
     const key = `${memberId}-${dateStr}`;
     setUpdating(key);
 
@@ -161,12 +250,21 @@ export function Attendance() {
             member_id: memberId,
             meeting_date: dateStr,
             is_attending: isAttending,
+            event_id: col.event?.id ?? null,
             updated_at: new Date().toISOString(),
           },
           { onConflict: 'member_id,meeting_date' }
         );
 
       if (error) throw error;
+
+      await supabase.from('0012-sr-attendance-plan-history').insert({
+        member_id: memberId,
+        meeting_date: dateStr,
+        event_id: col.event?.id ?? null,
+        is_attending: isAttending,
+        toggled_by: currentUser.id,
+      });
 
       await loadData();
     } catch (error) {
@@ -176,10 +274,14 @@ export function Attendance() {
     }
   };
 
-  const updateAttendance = async (memberId: string, date: Date, status: 'attended' | 'busy' | 'no_show') => {
+  const updateAttendance = async (
+    memberId: string,
+    col: Column,
+    status: 'attended' | 'busy' | 'no_show'
+  ) => {
     if (!currentUser) return;
 
-    const dateStr = toDateString(date);
+    const { dateStr } = col;
     const key = `${memberId}-${dateStr}`;
     setUpdating(key);
 
@@ -214,15 +316,15 @@ export function Attendance() {
     setWindowStart(newStart);
   };
 
-  const getColumnTotals = (date: Date): { attended: number; busy: number; noShow: number } => {
-    if (isFourthWednesday(date)) return { attended: 0, busy: 0, noShow: 0 };
+  const getColumnTotals = (col: Column): { attended: number; busy: number; noShow: number } => {
+    if (col.isSocial) return { attended: 0, busy: 0, noShow: 0 };
 
     let attended = 0;
     let busy = 0;
     let noShow = 0;
 
     members.forEach((member) => {
-      const status = getCellStatus(member.id, date);
+      const status = getCellStatus(member.id, col);
       if (status === 'attended') attended++;
       else if (status === 'busy') busy++;
       else if (status === 'no_show') noShow++;
@@ -231,10 +333,10 @@ export function Attendance() {
     return { attended, busy, noShow };
   };
 
-  const renderCell = (member: Member, date: Date) => {
-    const status = getCellStatus(member.id, date);
-    const dateStr = toDateString(date);
-    const isPast = isPastMeeting(date);
+  const renderCell = (member: Member, col: Column) => {
+    const status = getCellStatus(member.id, col);
+    const { dateStr } = col;
+    const isActive = isTodayOrPast(col.date);
     const key = `${member.id}-${dateStr}`;
     const isUpdating = updating === key;
 
@@ -242,44 +344,6 @@ export function Attendance() {
       return (
         <div className="h-full flex items-center justify-center bg-gray-100 text-gray-400 text-xs italic">
           Social
-        </div>
-      );
-    }
-
-    if (!isPast) {
-      if (isUpdating) {
-        return (
-          <div className="h-full flex items-center justify-center">
-            <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-[#1B2A4A]" />
-          </div>
-        );
-      }
-
-      const isAttending = status === 'attending';
-      return (
-        <div className="h-full flex items-center justify-center gap-1">
-          <button
-            onClick={() => updateAttendancePlan(member.id, date, true)}
-            className={`w-10 h-10 rounded flex items-center justify-center transition-colors text-xs font-semibold ${
-              isAttending
-                ? 'bg-green-500 text-white'
-                : 'bg-gray-100 hover:bg-green-100 text-gray-400'
-            }`}
-            title="Attending"
-          >
-            ✓
-          </button>
-          <button
-            onClick={() => updateAttendancePlan(member.id, date, false)}
-            className={`w-10 h-10 rounded flex items-center justify-center transition-colors text-xs font-semibold ${
-              !isAttending
-                ? 'bg-yellow-500 text-white'
-                : 'bg-gray-100 hover:bg-yellow-100 text-gray-400'
-            }`}
-            title="Busy"
-          >
-            ○
-          </button>
         </div>
       );
     }
@@ -292,23 +356,94 @@ export function Attendance() {
       );
     }
 
+    if (isActive) {
+      if (!col.isMeeting) {
+        const isAttending = status === 'attending';
+        return (
+          <div className="h-full flex items-center justify-center gap-1">
+            <button
+              onClick={() => updateAttendancePlan(member.id, col, true)}
+              className={`w-8 h-8 rounded flex items-center justify-center transition-colors ${
+                isAttending
+                  ? 'bg-green-500 text-white'
+                  : 'bg-gray-100 hover:bg-green-100 text-gray-400'
+              }`}
+              title="Going"
+            >
+              ✓
+            </button>
+            <button
+              onClick={() => updateAttendancePlan(member.id, col, false)}
+              className={`w-8 h-8 rounded flex items-center justify-center transition-colors ${
+                !isAttending
+                  ? 'bg-yellow-500 text-white'
+                  : 'bg-gray-100 hover:bg-yellow-100 text-gray-400'
+              }`}
+              title="Not Going"
+            >
+              ○
+            </button>
+          </div>
+        );
+      }
+
+      return (
+        <div className="h-full flex items-center justify-center gap-1">
+          <button
+            onClick={() => updateAttendance(member.id, col, 'attended')}
+            className={`w-8 h-8 rounded flex items-center justify-center transition-colors ${
+              status === 'attended'
+                ? 'bg-green-500 text-white'
+                : 'bg-gray-100 hover:bg-green-100 text-gray-400'
+            }`}
+            title="Attended"
+          >
+            ✓
+          </button>
+          <button
+            onClick={() => updateAttendance(member.id, col, 'busy')}
+            className={`w-8 h-8 rounded flex items-center justify-center transition-colors ${
+              status === 'busy'
+                ? 'bg-yellow-500 text-white'
+                : 'bg-gray-100 hover:bg-yellow-100 text-gray-400'
+            }`}
+            title="Busy"
+          >
+            ○
+          </button>
+          <button
+            onClick={() => updateAttendance(member.id, col, 'no_show')}
+            className={`w-8 h-8 rounded flex items-center justify-center transition-colors ${
+              status === 'no_show'
+                ? 'bg-red-500 text-white'
+                : 'bg-gray-100 hover:bg-red-100 text-gray-400'
+            }`}
+            title="No-Show"
+          >
+            ✗
+          </button>
+        </div>
+      );
+    }
+
+    const isAttending = status === 'attending';
     return (
       <div className="h-full flex items-center justify-center gap-1">
         <button
-          onClick={() => updateAttendance(member.id, date, 'attended')}
-          className={`w-8 h-8 rounded flex items-center justify-center transition-colors ${
-            status === 'attended'
+          onClick={() => updateAttendancePlan(member.id, col, true)}
+          className={`w-10 h-10 rounded flex items-center justify-center transition-colors text-xs font-semibold ${
+            isAttending
               ? 'bg-green-500 text-white'
               : 'bg-gray-100 hover:bg-green-100 text-gray-400'
           }`}
-          title="Attended"
+          title="Attending"
         >
           ✓
         </button>
         <button
-          onClick={() => updateAttendance(member.id, date, 'busy')}
-          className={`w-8 h-8 rounded flex items-center justify-center transition-colors ${
-            status === 'busy'
+          onClick={() => updateAttendancePlan(member.id, col, false)}
+          className={`w-10 h-10 rounded flex items-center justify-center transition-colors text-xs font-semibold ${
+            !isAttending
               ? 'bg-yellow-500 text-white'
               : 'bg-gray-100 hover:bg-yellow-100 text-gray-400'
           }`}
@@ -316,20 +451,13 @@ export function Attendance() {
         >
           ○
         </button>
-        <button
-          onClick={() => updateAttendance(member.id, date, 'no_show')}
-          className={`w-8 h-8 rounded flex items-center justify-center transition-colors ${
-            status === 'no_show'
-              ? 'bg-red-500 text-white'
-              : 'bg-gray-100 hover:bg-red-100 text-gray-400'
-          }`}
-          title="No-Show"
-        >
-          ✗
-        </button>
       </div>
     );
   };
+
+  const gridCols = columnList.length > 0
+    ? `200px repeat(${columnList.length}, minmax(120px, 1fr))`
+    : '200px repeat(4, 1fr)';
 
   return (
     <Layout showHeader={false}>
@@ -366,17 +494,27 @@ export function Attendance() {
           </div>
         ) : (
           <div className="flex-1 overflow-auto p-4">
-            <div className="min-w-[800px]">
-              <div className="grid grid-cols-[200px_repeat(4,1fr)] gap-px bg-gray-300 border border-gray-300 rounded-lg overflow-hidden">
+            <div style={{ minWidth: `${200 + columnList.length * 120}px` }}>
+              <div
+                className="grid gap-px bg-gray-300 border border-gray-300 rounded-lg overflow-hidden"
+                style={{ gridTemplateColumns: gridCols }}
+              >
                 <div className="bg-gray-100 px-4 py-3 font-bold text-gray-700 text-sm">Member</div>
-                {wednesdays.map((date) => (
+                {columnList.map((col) => (
                   <div
-                    key={toDateString(date)}
-                    className="bg-gray-100 px-2 py-3 font-bold text-gray-700 text-center text-xs"
+                    key={col.dateStr}
+                    className={`px-2 py-3 font-bold text-gray-700 text-center text-xs ${
+                      col.event ? 'bg-blue-50' : 'bg-gray-100'
+                    }`}
                   >
-                    <div>{formatColumnDate(date)}</div>
-                    <div className="text-[10px] font-normal text-gray-500">
-                      {isPastMeeting(date) ? 'Past' : 'Plan'}
+                    <div>{formatColumnDate(col.date)}</div>
+                    {col.event && (
+                      <div className="text-[10px] font-semibold text-blue-600 truncate max-w-[110px] mx-auto">
+                        ({col.event.event_name})
+                      </div>
+                    )}
+                    <div className="text-[10px] font-normal text-gray-500 mt-0.5">
+                      {col.isSocial ? 'Social' : isTodayOrPast(col.date) ? 'Active' : col.event ? 'RSVP' : 'Plan'}
                     </div>
                   </div>
                 ))}
@@ -389,9 +527,9 @@ export function Attendance() {
                     >
                       {member.first_name} {member.last_name}
                     </div>
-                    {wednesdays.map((date) => (
-                      <div key={`${member.id}-${toDateString(date)}`} className="bg-white">
-                        {renderCell(member, date)}
+                    {columnList.map((col) => (
+                      <div key={`${member.id}-${col.dateStr}`} className="bg-white">
+                        {renderCell(member, col)}
                       </div>
                     ))}
                   </>
@@ -400,15 +538,14 @@ export function Attendance() {
                 <div className="bg-gray-50 px-4 py-3 font-bold text-gray-700 text-sm border-t-2 border-gray-400">
                   Totals
                 </div>
-                {wednesdays.map((date) => {
-                  const totals = getColumnTotals(date);
-                  const isSocial = isFourthWednesday(date);
+                {columnList.map((col) => {
+                  const totals = getColumnTotals(col);
                   return (
                     <div
-                      key={`total-${toDateString(date)}`}
+                      key={`total-${col.dateStr}`}
                       className="bg-gray-50 px-2 py-3 text-xs text-center border-t-2 border-gray-400"
                     >
-                      {isSocial ? (
+                      {col.isSocial ? (
                         <div className="text-gray-400 italic">-</div>
                       ) : (
                         <>
