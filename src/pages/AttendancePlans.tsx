@@ -99,12 +99,24 @@ export function AttendancePlans() {
   const buildRows = useCallback(
     (evts: CalendarEvent[]): RowItem[] => {
       const meetingDateStrs = wednesdays.map(toDateString);
-      const items: RowItem[] = wednesdays.map((date) => ({
-        dateStr: toDateString(date),
-        date,
-        isMeeting: true,
-        isSocial: isFourthWednesday(date),
-      }));
+
+      const evtByDate: Record<string, CalendarEvent> = {};
+      evts.forEach((evt) => {
+        const evtDate = new Date(evt.start_date);
+        evtDate.setHours(12, 0, 0, 0);
+        evtByDate[toDateString(evtDate)] = evt;
+      });
+
+      const items: RowItem[] = wednesdays.map((date) => {
+        const ds = toDateString(date);
+        return {
+          dateStr: ds,
+          date,
+          isMeeting: true,
+          isSocial: isFourthWednesday(date),
+          event: evtByDate[ds],
+        };
+      });
 
       evts.forEach((evt) => {
         const evtDate = new Date(evt.start_date);
@@ -369,9 +381,16 @@ export function AttendancePlans() {
                       key={dateStr}
                       className="bg-white rounded-xl shadow-sm border border-gray-100 px-5 py-4 flex items-center justify-between"
                     >
-                      <span className="font-medium text-gray-800">
-                        {formatDisplayDate(date)}
-                      </span>
+                      <div>
+                        <span className="font-medium text-gray-800">
+                          {formatDisplayDate(date)}
+                        </span>
+                        {event && (
+                          <span className="ml-2 text-sm text-gray-500 font-medium">
+                            ({event.event_name})
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-2">
                         <div
                           className={`relative inline-flex h-7 w-12 items-center rounded-full opacity-50 ${
