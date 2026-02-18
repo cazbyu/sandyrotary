@@ -180,7 +180,7 @@ export function AttendancePlans() {
   const toggleAttendance = async (row: RowItem) => {
     if (!member) return;
     const { dateStr, event } = row;
-    const defaultValue = row.isMeeting ? true : false;
+    const defaultValue = (row.isMeeting && !row.isSocial) ? true : false;
     const currentValue = plans[dateStr] ?? defaultValue;
     const newValue = !currentValue;
 
@@ -278,17 +278,55 @@ export function AttendancePlans() {
                 const isTogglingThis = toggling === dateStr;
 
                 if (isSocial) {
+                  const isGoing = plans[dateStr] ?? false;
+                  const isTogglingThis2 = toggling === dateStr;
+                  if (past) {
+                    return (
+                      <div
+                        key={dateStr}
+                        className="bg-gray-50 rounded-xl border border-gray-100 px-5 py-4 flex items-center justify-between"
+                      >
+                        <div>
+                          <span className="font-medium text-gray-500">{formatDisplayDate(date)}</span>
+                          <span className="ml-2 text-xs text-gray-400 italic">Social</span>
+                        </div>
+                        {isGoing ? (
+                          <span className="flex items-center gap-1.5 text-sm font-semibold text-green-600">
+                            <Check className="w-4 h-4" />
+                            Went
+                          </span>
+                        ) : (
+                          <span className="text-sm font-semibold text-gray-400">Skipped</span>
+                        )}
+                      </div>
+                    );
+                  }
                   return (
                     <div
                       key={dateStr}
-                      className="bg-gray-100 rounded-xl px-5 py-4 flex items-center justify-between"
+                      className="bg-gray-50 rounded-xl border border-gray-200 px-5 py-4 flex items-center justify-between"
                     >
-                      <span className="font-medium text-gray-400">
-                        {formatDisplayDate(date)}
-                      </span>
-                      <span className="text-sm font-semibold text-gray-400 italic">
-                        Social
-                      </span>
+                      <div>
+                        <span className="font-medium text-gray-700">{formatDisplayDate(date)}</span>
+                        <span className="ml-2 text-xs text-gray-500 italic">Social</span>
+                      </div>
+                      <button
+                        onClick={() => toggleAttendance(row)}
+                        disabled={isTogglingThis2}
+                        className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
+                          isTogglingThis2
+                            ? 'opacity-60 cursor-wait'
+                            : isGoing
+                            ? 'bg-green-500'
+                            : 'bg-yellow-400'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform ${
+                            isGoing ? 'translate-x-6' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
                     </div>
                   );
                 }

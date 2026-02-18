@@ -207,8 +207,6 @@ export function Attendance() {
   }, [events, windowStart]);
 
   const getCellStatus = (memberId: string, col: Column): CellStatus => {
-    if (col.isSocial) return 'social';
-
     const { dateStr } = col;
     const isActive = isTodayOrPast(col.date);
 
@@ -220,11 +218,12 @@ export function Attendance() {
       if (plan && !plan.is_attending) return 'busy';
 
       if (!col.isMeeting) return 'busy';
+      if (col.isSocial) return 'busy';
 
       return null;
     } else {
       const plan = plans[dateStr]?.find((p) => p.member_id === memberId);
-      if (!col.isMeeting) {
+      if (!col.isMeeting || col.isSocial) {
         return plan ? (plan.is_attending ? 'attending' : 'busy') : 'busy';
       }
       return plan ? (plan.is_attending ? 'attending' : 'busy') : 'attending';
@@ -317,7 +316,6 @@ export function Attendance() {
   };
 
   const getColumnTotals = (col: Column): { attended: number; busy: number; noShow: number } => {
-    if (col.isSocial) return { attended: 0, busy: 0, noShow: 0 };
 
     let attended = 0;
     let busy = 0;
@@ -340,18 +338,40 @@ export function Attendance() {
     const key = `${member.id}-${dateStr}`;
     const isUpdating = updating === key;
 
-    if (status === 'social') {
-      return (
-        <div className="h-full flex items-center justify-center bg-gray-100 text-gray-400 text-xs italic">
-          Social
-        </div>
-      );
-    }
-
     if (isUpdating) {
       return (
         <div className="h-full flex items-center justify-center">
           <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-[#1B2A4A]" />
+        </div>
+      );
+    }
+
+    if (col.isSocial) {
+      const isAttending = status === 'attending';
+      return (
+        <div className="h-full flex items-center justify-center gap-1">
+          <button
+            onClick={() => updateAttendancePlan(member.id, col, true)}
+            className={`w-8 h-8 rounded flex items-center justify-center transition-colors ${
+              isAttending
+                ? 'bg-green-500 text-white'
+                : 'bg-gray-100 hover:bg-green-100 text-gray-400'
+            }`}
+            title="Going"
+          >
+            ✓
+          </button>
+          <button
+            onClick={() => updateAttendancePlan(member.id, col, false)}
+            className={`w-8 h-8 rounded flex items-center justify-center transition-colors ${
+              !isAttending
+                ? 'bg-yellow-500 text-white'
+                : 'bg-gray-100 hover:bg-yellow-100 text-gray-400'
+            }`}
+            title="Not Going"
+          >
+            ○
+          </button>
         </div>
       );
     }
@@ -455,10 +475,6 @@ export function Attendance() {
     );
   };
 
-  const gridCols = columnList.length > 0
-    ? `200px repeat(${columnList.length}, minmax(120px, 1fr))`
-    : '200px repeat(4, 1fr)';
-
   return (
     <Layout showHeader={false}>
       <div className="h-screen flex flex-col bg-[#F5F7FA]">
@@ -493,72 +509,73 @@ export function Attendance() {
             <div className="inline-block animate-spin rounded-full h-10 w-10 border-b-2 border-[#1B2A4A]" />
           </div>
         ) : (
-          <div className="flex-1 overflow-auto p-4">
-            <div style={{ minWidth: `${200 + columnList.length * 120}px` }}>
-              <div
-                className="grid gap-px bg-gray-300 border border-gray-300 rounded-lg overflow-hidden"
-                style={{ gridTemplateColumns: gridCols }}
-              >
-                <div className="bg-gray-100 px-4 py-3 font-bold text-gray-700 text-sm">Member</div>
-                {columnList.map((col) => (
-                  <div
-                    key={col.dateStr}
-                    className={`px-2 py-3 font-bold text-gray-700 text-center text-xs ${
-                      col.event ? 'bg-blue-50' : 'bg-gray-100'
-                    }`}
+          <div className="flex-1 overflow-auto">
+            <table className="border-collapse" style={{ minWidth: `${160 + columnList.length * 130}px` }}>
+              <thead>
+                <tr>
+                  <th
+                    className="sticky top-0 left-0 z-30 bg-gray-100 border border-gray-300 px-4 py-3 text-left text-sm font-bold text-gray-700 whitespace-nowrap"
+                    style={{ minWidth: 160 }}
                   >
-                    <div>{formatColumnDate(col.date)}</div>
-                    {col.event && (
-                      <div className="text-[10px] font-semibold text-blue-600 truncate max-w-[110px] mx-auto">
-                        ({col.event.event_name})
+                    Member
+                  </th>
+                  {columnList.map((col) => (
+                    <th
+                      key={col.dateStr}
+                      className={`sticky top-0 z-20 border border-gray-300 px-2 py-3 text-center text-xs font-bold text-gray-700 ${
+                        col.event ? 'bg-blue-50' : 'bg-gray-100'
+                      }`}
+                      style={{ minWidth: 130 }}
+                    >
+                      <div>{formatColumnDate(col.date)}</div>
+                      {col.event && (
+                        <div className="text-[10px] font-semibold text-blue-600 truncate max-w-[110px] mx-auto">
+                          ({col.event.event_name})
+                        </div>
+                      )}
+                      <div className="text-[10px] font-normal text-gray-500 mt-0.5">
+                        {col.isSocial ? 'Social' : isTodayOrPast(col.date) ? 'Active' : col.event ? 'RSVP' : 'Plan'}
                       </div>
-                    )}
-                    <div className="text-[10px] font-normal text-gray-500 mt-0.5">
-                      {col.isSocial ? 'Social' : isTodayOrPast(col.date) ? 'Active' : col.event ? 'RSVP' : 'Plan'}
-                    </div>
-                  </div>
-                ))}
-
-                {members.map((member) => (
-                  <>
-                    <div
-                      key={`name-${member.id}`}
-                      className="bg-white px-4 py-3 text-sm font-medium text-gray-800 flex items-center"
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {members.map((member, idx) => (
+                  <tr key={member.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'}>
+                    <td
+                      className="sticky left-0 z-10 border border-gray-200 px-4 py-2 text-sm font-medium text-gray-800 whitespace-nowrap shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]"
+                      style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#fafafa' }}
                     >
                       {member.first_name} {member.last_name}
-                    </div>
+                    </td>
                     {columnList.map((col) => (
-                      <div key={`${member.id}-${col.dateStr}`} className="bg-white">
+                      <td key={`${member.id}-${col.dateStr}`} className="border border-gray-200 p-0" style={{ height: 52 }}>
                         {renderCell(member, col)}
-                      </div>
+                      </td>
                     ))}
-                  </>
+                  </tr>
                 ))}
-
-                <div className="bg-gray-50 px-4 py-3 font-bold text-gray-700 text-sm border-t-2 border-gray-400">
-                  Totals
-                </div>
-                {columnList.map((col) => {
-                  const totals = getColumnTotals(col);
-                  return (
-                    <div
-                      key={`total-${col.dateStr}`}
-                      className="bg-gray-50 px-2 py-3 text-xs text-center border-t-2 border-gray-400"
-                    >
-                      {col.isSocial ? (
-                        <div className="text-gray-400 italic">-</div>
-                      ) : (
-                        <>
-                          <div className="text-green-600 font-bold">✓ {totals.attended}</div>
-                          <div className="text-yellow-600 font-bold">○ {totals.busy}</div>
-                          <div className="text-red-600 font-bold">✗ {totals.noShow}</div>
-                        </>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+                <tr className="bg-gray-50">
+                  <td className="sticky left-0 z-10 border-t-2 border-gray-400 border border-gray-200 px-4 py-3 text-sm font-bold text-gray-700 bg-gray-50 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]">
+                    Totals
+                  </td>
+                  {columnList.map((col) => {
+                    const totals = getColumnTotals(col);
+                    return (
+                      <td
+                        key={`total-${col.dateStr}`}
+                        className="border-t-2 border-gray-400 border border-gray-200 px-2 py-3 text-xs text-center"
+                      >
+                        <div className="text-green-600 font-bold">✓ {totals.attended}</div>
+                        <div className="text-yellow-600 font-bold">○ {totals.busy}</div>
+                        <div className="text-red-600 font-bold">✗ {totals.noShow}</div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              </tbody>
+            </table>
           </div>
         )}
       </div>

@@ -162,7 +162,17 @@ export function AddEvent() {
               <input
                 type="datetime-local"
                 value={formData.startDate}
-                onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                onChange={(e) => {
+                  const start = e.target.value;
+                  let newEnd = formData.endDate;
+                  if (start) {
+                    const startDt = new Date(start);
+                    startDt.setHours(startDt.getHours() + 1);
+                    const pad = (n: number) => String(n).padStart(2, '0');
+                    newEnd = `${startDt.getFullYear()}-${pad(startDt.getMonth() + 1)}-${pad(startDt.getDate())}T${pad(startDt.getHours())}:${pad(startDt.getMinutes())}`;
+                  }
+                  setFormData({ ...formData, startDate: start, endDate: newEnd });
+                }}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B2A4A]"
                 required
               />
