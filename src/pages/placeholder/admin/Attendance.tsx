@@ -333,8 +333,8 @@ export function Attendance() {
 
   return (
     <Layout showHeader={false}>
-      <div className="min-h-screen bg-[#F5F7FA]">
-        <div className="bg-[#1B2A4A] px-4 py-4 flex items-center gap-4">
+      <div className="h-screen flex flex-col bg-[#F5F7FA]">
+        <div className="bg-[#1B2A4A] px-4 py-4 flex items-center gap-4 flex-shrink-0">
           <button
             onClick={() => navigate(-1)}
             className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors"
@@ -344,7 +344,7 @@ export function Attendance() {
           <h1 className="text-xl font-bold text-white flex-1">Attendance Roster</h1>
         </div>
 
-        <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between sticky top-0 z-10 shadow-sm">
+        <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between z-10 shadow-sm flex-shrink-0">
           <button
             onClick={() => navigateWeeks(-1)}
             className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
@@ -365,7 +365,7 @@ export function Attendance() {
             <div className="inline-block animate-spin rounded-full h-10 w-10 border-b-2 border-[#1B2A4A]" />
           </div>
         ) : (
-          <div className="p-4 overflow-x-auto">
+          <div className="flex-1 overflow-auto p-4">
             <div className="min-w-[800px]">
               <div className="grid grid-cols-[200px_repeat(4,1fr)] gap-px bg-gray-300 border border-gray-300 rounded-lg overflow-hidden">
                 <div className="bg-gray-100 px-4 py-3 font-bold text-gray-700 text-sm">Member</div>
