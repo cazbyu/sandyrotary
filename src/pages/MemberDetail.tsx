@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Phone, MessageCircle, User, Mail, MapPin, Share2 } from 'lucide-react';
+import { ArrowLeft, Phone, MessageCircle, User, Mail, MapPin, Share2, UsersRound } from 'lucide-react';
 import { Layout } from '../components/Layout';
 import { AccordionSection } from '../components/AccordionSection';
 import { supabase } from '../lib/supabase';
@@ -28,6 +28,7 @@ interface MemberData {
   office_city: string;
   office_state: string;
   office_postal_code: string;
+  committees: string[] | null;
 }
 
 interface SocialMedia {
@@ -315,6 +316,21 @@ export function MemberDetail() {
                     <div className="font-medium text-gray-800">{social.platform}</div>
                     <div className="text-sm text-gray-600">@{social.handle}</div>
                   </div>
+                ))}
+              </div>
+            </AccordionSection>
+          )}
+
+          {member.committees && member.committees.length > 0 && (
+            <AccordionSection title="Committees" icon={UsersRound} defaultOpen>
+              <div className="flex flex-wrap gap-2">
+                {member.committees.map((committee, index) => (
+                  <span
+                    key={index}
+                    className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-[#1B2A4A]/10 text-[#1B2A4A]"
+                  >
+                    {committee}
+                  </span>
                 ))}
               </div>
             </AccordionSection>

@@ -8,7 +8,6 @@ import {
   Newspaper,
   Camera,
   MessageCircle,
-  Send,
   Heart,
   Info,
   Cake,
@@ -18,6 +17,8 @@ import {
   UserPlus,
   Filter,
   UsersRound,
+  Lightbulb,
+  ListChecks,
 } from 'lucide-react';
 import { Layout } from '../components/Layout';
 import { NavCard } from '../components/NavCard';
@@ -106,10 +107,9 @@ export function Home() {
             label="WhatsApp"
             onClick={handleWhatsAppClick}
           />
-          <NavCard to="/message" icon={Send} label="Message" />
+          <NavCard to="/deposit-ideas" icon={Lightbulb} label="Deposit Ideas" />
           <NavCard to="/sponsors" icon={Heart} label="Sponsors" />
           <NavCard to="/club-info" icon={Info} label="Club Info" />
-          <NavCard to="/birthdays" icon={Cake} label="Birthdays" />
         </CardGrid>
       )}
 
@@ -118,6 +118,8 @@ export function Home() {
           <NavCard to="/leads" icon={Filter} label="EZ-Leads" />
           <NavCard to="/admin/attendance" icon={ClipboardCheck} label="Attendance Roster" />
           <NavCard to="/admin/add-event" icon={CalendarPlus} label="Add Calendar Event" />
+          <NavCard to="/admin/leadership-actions" icon={ListChecks} label="Leadership Actions" />
+          <NavCard to="/birthdays" icon={Cake} label="Birthdays" />
           {isAdmin && <NavCard to="/admin/members" icon={UserCog} label="Manage Members" />}
         </CardGrid>
       )}

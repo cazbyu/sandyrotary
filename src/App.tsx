@@ -31,6 +31,8 @@ import { ReferSomeone } from './pages/ReferSomeone';
 import { EZLeads } from './pages/admin/EZLeads';
 import { LeadDetail } from './pages/admin/LeadDetail';
 import { ProspectiveMembers } from './pages/ProspectiveMembers';
+import { DepositIdeas } from './pages/DepositIdeas';
+import { LeadershipActions } from './pages/admin/LeadershipActions';
 
 function App() {
   return (
@@ -59,11 +61,13 @@ function App() {
           <Route path="/refer" element={<ProtectedRoute><ReferSomeone /></ProtectedRoute>} />
           <Route path="/prospective-members" element={<ProtectedRoute><ProspectiveMembers /></ProtectedRoute>} />
           <Route path="/attendance-plans" element={<ProtectedRoute><AttendancePlans /></ProtectedRoute>} />
+          <Route path="/deposit-ideas" element={<ProtectedRoute><DepositIdeas /></ProtectedRoute>} />
 
           <Route path="/leads" element={<ProtectedRoute requireLeader><EZLeads /></ProtectedRoute>} />
           <Route path="/leads/:id" element={<ProtectedRoute requireLeader><LeadDetail /></ProtectedRoute>} />
 
           <Route path="/admin/add-event" element={<ProtectedRoute requireLeader><AddEvent /></ProtectedRoute>} />
+          <Route path="/admin/leadership-actions" element={<ProtectedRoute requireLeader><LeadershipActions /></ProtectedRoute>} />
           <Route path="/admin/attendance" element={<ProtectedRoute requireLeader><Attendance /></ProtectedRoute>} />
           <Route path="/admin/members" element={<ProtectedRoute requireAdmin><ManageMembers /></ProtectedRoute>} />
           <Route path="/admin/stories/new" element={<ProtectedRoute requireAdmin><StoryForm /></ProtectedRoute>} />
