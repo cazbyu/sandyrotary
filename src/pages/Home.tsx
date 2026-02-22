@@ -19,6 +19,7 @@ import {
   UsersRound,
   Lightbulb,
   ListChecks,
+  DollarSign,
 } from 'lucide-react';
 import { Layout } from '../components/Layout';
 import { NavCard } from '../components/NavCard';
@@ -97,10 +98,9 @@ export function Home() {
           <NavCard to="/leadership" icon={Shield} label="Leadership" />
           <NavCard to="/calendar" icon={Calendar} label="Calendar" />
           <NavCard to="/refer" icon={UserPlus} label="Refer Someone" />
-          <NavCard to="/prospective-members" icon={UsersRound} label="Prospective Members" />
-          <NavCard to="/attendance-plans" icon={ClipboardCheck} label="Attendance Plans" />
-          <NavCard to="/stories" icon={BookOpen} label="EZ-Story" />
-          <NavCard to="/bulletins" icon={Newspaper} label="EZ-Bulletin" />
+          <NavCard to="/attendance-plans" icon={ClipboardCheck} label="My Attendance Plans" />
+          <NavCard to="/stories" icon={BookOpen} label="Story" />
+          <NavCard to="/bulletins" icon={Newspaper} label="Bulletin" />
           <NavCard to="/selfies" icon={Camera} label="Service Selfies" />
           <NavCard
             icon={MessageCircle}
@@ -115,10 +115,12 @@ export function Home() {
 
       {activeTab === 'admin' && isLeader && (
         <CardGrid>
-          <NavCard to="/leads" icon={Filter} label="EZ-Leads" />
+          <NavCard to="/leads" icon={Filter} label="Leads" />
+          <NavCard to="/prospective-members" icon={UsersRound} label="Prospective Members" />
           <NavCard to="/admin/attendance" icon={ClipboardCheck} label="Attendance Roster" />
           <NavCard to="/admin/add-event" icon={CalendarPlus} label="Add Calendar Event" />
           <NavCard to="/admin/leadership-actions" icon={ListChecks} label="Leadership Actions" />
+          <NavCard to="/admin/fundraiser" icon={DollarSign} label="Fundraiser" />
           <NavCard to="/birthdays" icon={Cake} label="Birthdays" />
           {isAdmin && <NavCard to="/admin/members" icon={UserCog} label="Manage Members" />}
         </CardGrid>

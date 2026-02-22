@@ -92,7 +92,7 @@ export function Bulletins() {
             >
               <ArrowLeft className="w-6 h-6 text-white" />
             </button>
-            <h1 className="text-xl font-bold text-white flex-1">EZ-Bulletin</h1>
+            <h1 className="text-xl font-bold text-white flex-1">Bulletin</h1>
           </div>
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
@@ -115,7 +115,7 @@ export function Bulletins() {
           >
             <ArrowLeft className="w-6 h-6 text-white" />
           </button>
-          <h1 className="text-xl font-bold text-white flex-1">EZ-Bulletin</h1>
+          <h1 className="text-xl font-bold text-white flex-1">Bulletin</h1>
         </div>
 
         <div className="p-4 space-y-4">

@@ -137,7 +137,7 @@ export function EZLeads() {
             <button onClick={() => navigate(-1)} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10">
               <ArrowLeft className="w-6 h-6 text-white" />
             </button>
-            <h1 className="text-xl font-bold text-white">EZ-Leads</h1>
+            <h1 className="text-xl font-bold text-white">Leads</h1>
           </div>
           <div className="flex items-center justify-center py-12">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#1B2A4A]"></div>
@@ -156,7 +156,7 @@ export function EZLeads() {
               <button onClick={() => navigate(-1)} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10">
                 <ArrowLeft className="w-6 h-6 text-white" />
               </button>
-              <h1 className="text-xl font-bold text-white ml-4">EZ-Leads</h1>
+              <h1 className="text-xl font-bold text-white ml-4">Leads</h1>
             </div>
             {topView === 'pipeline' && (
               <div className="flex gap-2">
