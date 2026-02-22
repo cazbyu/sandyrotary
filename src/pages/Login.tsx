@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Flame, Bug } from 'lucide-react';
+import { Flame, Shield, User } from 'lucide-react';
 
 export function Login() {
   const [email, setEmail] = useState('');
@@ -15,7 +15,8 @@ export function Login() {
   const [showPasswordSetup, setShowPasswordSetup] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
-  const [devLoading, setDevLoading] = useState(false);
+  const [devLeaderLoading, setDevLeaderLoading] = useState(false);
+  const [devMemberLoading, setDevMemberLoading] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -487,28 +488,55 @@ export function Login() {
         </div>
 
         {import.meta.env.VITE_DEV_LOGIN === 'true' && (
-          <button
-            onClick={async () => {
-              setDevLoading(true);
-              setError('');
-              try {
-                const { error } = await supabase.auth.signInWithPassword({
-                  email: 'testmember@sandyrotary.dev',
-                  password: 'TestMember2026!',
-                });
-                if (error) setError(error.message);
-              } catch {
-                setError('Dev auto-login failed');
-              } finally {
-                setDevLoading(false);
-              }
-            }}
-            disabled={devLoading}
-            className="mt-4 w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg border border-dashed border-amber-400/60 bg-amber-400/10 text-amber-200 text-sm font-medium hover:bg-amber-400/20 transition-colors disabled:opacity-50 disabled:cursor-wait"
-          >
-            <Bug className="w-4 h-4" />
-            {devLoading ? 'Signing in...' : 'Dev Auto-Login (Test Member)'}
-          </button>
+          <div className="mt-4 space-y-2">
+            <p className="text-white/40 text-xs text-center uppercase tracking-wider font-medium">Dev Quick Login</p>
+            <div className="flex gap-2">
+              <button
+                onClick={async () => {
+                  setDevLeaderLoading(true);
+                  setError('');
+                  try {
+                    const { error } = await supabase.auth.signInWithPassword({
+                      email: 'testleader@sandyrotary.test',
+                      password: 'TestPassword123',
+                    });
+                    if (error) setError(error.message);
+                  } catch {
+                    setError('Dev auto-login failed');
+                  } finally {
+                    setDevLeaderLoading(false);
+                  }
+                }}
+                disabled={devLeaderLoading || devMemberLoading}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg border border-dashed border-amber-400/60 bg-amber-400/10 text-amber-200 text-sm font-medium hover:bg-amber-400/20 transition-colors disabled:opacity-50 disabled:cursor-wait"
+              >
+                <Shield className="w-4 h-4" />
+                {devLeaderLoading ? 'Signing in...' : 'Leader'}
+              </button>
+              <button
+                onClick={async () => {
+                  setDevMemberLoading(true);
+                  setError('');
+                  try {
+                    const { error } = await supabase.auth.signInWithPassword({
+                      email: 'testmember@sandyrotary.test',
+                      password: 'TestPassword123!',
+                    });
+                    if (error) setError(error.message);
+                  } catch {
+                    setError('Dev auto-login failed');
+                  } finally {
+                    setDevMemberLoading(false);
+                  }
+                }}
+                disabled={devLeaderLoading || devMemberLoading}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg border border-dashed border-white/20 bg-white/5 text-white/60 text-sm font-medium hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-wait"
+              >
+                <User className="w-4 h-4" />
+                {devMemberLoading ? 'Signing in...' : 'Member'}
+              </button>
+            </div>
+          </div>
         )}
 
         <p className="text-white text-center mt-6 text-sm">
