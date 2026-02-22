@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Flame } from 'lucide-react';
+import { Flame, Bug } from 'lucide-react';
 
 export function Login() {
   const [email, setEmail] = useState('');
@@ -15,6 +15,7 @@ export function Login() {
   const [showPasswordSetup, setShowPasswordSetup] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [devLoading, setDevLoading] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -484,6 +485,31 @@ export function Login() {
             </>
           )}
         </div>
+
+        {import.meta.env.DEV && (
+          <button
+            onClick={async () => {
+              setDevLoading(true);
+              setError('');
+              try {
+                const { error } = await supabase.auth.signInWithPassword({
+                  email: 'testmember@sandyrotary.dev',
+                  password: 'TestMember2026!',
+                });
+                if (error) setError(error.message);
+              } catch {
+                setError('Dev auto-login failed');
+              } finally {
+                setDevLoading(false);
+              }
+            }}
+            disabled={devLoading}
+            className="mt-4 w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg border border-dashed border-amber-400/60 bg-amber-400/10 text-amber-200 text-sm font-medium hover:bg-amber-400/20 transition-colors disabled:opacity-50 disabled:cursor-wait"
+          >
+            <Bug className="w-4 h-4" />
+            {devLoading ? 'Signing in...' : 'Dev Auto-Login (Test Member)'}
+          </button>
+        )}
 
         <p className="text-white text-center mt-6 text-sm">
           District 5420
