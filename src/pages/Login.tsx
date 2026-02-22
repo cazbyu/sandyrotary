@@ -486,7 +486,7 @@ export function Login() {
           )}
         </div>
 
-        {import.meta.env.DEV && (
+        {import.meta.env.VITE_DEV_LOGIN === 'true' && (
           <button
             onClick={async () => {
               setDevLoading(true);
