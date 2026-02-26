@@ -1,13 +1,9 @@
 import { useState, useEffect } from 'react';
 import {
   User,
-  Shield,
-  Calendar,
-  BookOpen,
-  Newspaper,
-  Lightbulb,
-  Info,
-  ClipboardCheck,
+  Building2,
+  Users,
+  Camera,
   CalendarPlus,
   UserCog,
   ListChecks,
@@ -18,10 +14,6 @@ import { CardGrid } from '../components/CardGrid';
 import { BottomNav } from '../components/BottomNav';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { ClubhouseCard } from '../components/home/ClubhouseCard';
-import { MyRotaryImpactCard } from '../components/home/MyRotaryImpactCard';
-import { ServicePipelineCard } from '../components/home/ServicePipelineCard';
-import { ConnectGrowCard } from '../components/home/ConnectGrowCard';
 import { MeetingOpsCard } from '../components/admin/MeetingOpsCard';
 import { InsightDashboardCard } from '../components/admin/InsightDashboardCard';
 import { GrowthPipelineCard } from '../components/admin/GrowthPipelineCard';
@@ -95,29 +87,12 @@ export function Home() {
         )}
 
         {activeTab === 'home' && (
-          <div className="p-4 space-y-4">
-            <ClubhouseCard />
-            <MyRotaryImpactCard />
-            <ServicePipelineCard />
-            <ConnectGrowCard />
-
-            {/* Quick Links */}
-            <div className="pt-2">
-              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 px-1">
-                Quick Links
-              </h3>
-              <CardGrid>
-                <NavCard to="/my-data" icon={User} label="My Data" />
-                <NavCard to="/attendance-plans" icon={ClipboardCheck} label="My Attendance" />
-                <NavCard to="/leadership" icon={Shield} label="Leadership" />
-                <NavCard to="/calendar" icon={Calendar} label="Calendar" />
-                <NavCard to="/stories" icon={BookOpen} label="Stories" />
-                <NavCard to="/bulletins" icon={Newspaper} label="Bulletins" />
-                <NavCard to="/deposit-ideas" icon={Lightbulb} label="Deposit Ideas" />
-                <NavCard to="/club-info" icon={Info} label="Club Info" />
-              </CardGrid>
-            </div>
-          </div>
+          <CardGrid>
+            <NavCard to="/profile-hub" icon={User} label="My Profile & Attendance" />
+            <NavCard to="/club-hub" icon={Building2} label="Club Hub" />
+            <NavCard to="/connect-grow" icon={Users} label="Connect & Grow" />
+            <NavCard to="/service-gallery" icon={Camera} label="Service Gallery" />
+          </CardGrid>
         )}
 
         {activeTab === 'admin' && isLeader && (

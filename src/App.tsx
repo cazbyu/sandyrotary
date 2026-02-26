@@ -34,6 +34,11 @@ import { ProspectiveMembers } from './pages/ProspectiveMembers';
 import { DepositIdeas } from './pages/DepositIdeas';
 import { LeadershipActions } from './pages/admin/LeadershipActions';
 import { Fundraiser } from './pages/placeholder/admin/Fundraiser';
+import { ProfileHub } from './pages/hubs/ProfileHub';
+import { ClubHub } from './pages/hubs/ClubHub';
+import { ConnectGrowHub } from './pages/hubs/ConnectGrowHub';
+import { ServiceGalleryHub } from './pages/hubs/ServiceGalleryHub';
+import { Suggestions } from './pages/Suggestions';
 
 function App() {
   return (
@@ -44,6 +49,11 @@ function App() {
           <Route path="/access-denied" element={<AccessDenied />} />
 
           <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+          <Route path="/profile-hub" element={<ProtectedRoute><ProfileHub /></ProtectedRoute>} />
+          <Route path="/club-hub" element={<ProtectedRoute><ClubHub /></ProtectedRoute>} />
+          <Route path="/connect-grow" element={<ProtectedRoute><ConnectGrowHub /></ProtectedRoute>} />
+          <Route path="/service-gallery" element={<ProtectedRoute><ServiceGalleryHub /></ProtectedRoute>} />
+          <Route path="/suggestions" element={<ProtectedRoute><Suggestions /></ProtectedRoute>} />
           <Route path="/my-data" element={<ProtectedRoute><MyData /></ProtectedRoute>} />
           <Route path="/members" element={<ProtectedRoute><Members /></ProtectedRoute>} />
           <Route path="/members/:id" element={<ProtectedRoute><MemberDetail /></ProtectedRoute>} />
