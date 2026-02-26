@@ -20,3 +20,53 @@ export interface Member {
   created_at: string;
   updated_at: string;
 }
+
+export interface WeeklySurvey {
+  id: string;
+  question_text: string;
+  survey_type: string;
+  meeting_date: string;
+  created_by: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface SurveyResponse {
+  id: string;
+  survey_id: string;
+  member_id: string;
+  rating: number;
+  comment?: string;
+  created_at: string;
+}
+
+export interface MemberSuggestion {
+  id: string;
+  member_id: string;
+  suggestion_text: string;
+  share_with_leadership: boolean;
+  created_at: string;
+}
+
+export interface VolunteerHours {
+  id: string;
+  member_id: string;
+  hours: number;
+  description?: string;
+  service_date: string;
+  logged_by: string;
+  created_at: string;
+}
+
+export interface FundraiserCampaign {
+  id: string;
+  name: string;
+  description?: string;
+  goal_amount: number;
+  current_amount: number;
+  start_date?: string;
+  end_date?: string;
+  is_active: boolean;
+  bracket_url?: string;
+  created_at: string;
+}

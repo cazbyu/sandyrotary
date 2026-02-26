@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Flame, Settings, ArrowLeft, LogOut } from 'lucide-react';
+import { Flame, Settings, ArrowLeft, LogOut, MessageCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 
@@ -10,9 +10,11 @@ interface LayoutProps {
   showBackButton?: boolean;
   backPath?: string;
   title?: string;
+  whatsappLink?: string;
+  onWhatsAppClick?: () => void;
 }
 
-export function Layout({ children, showHeader = true, showBackButton = false, backPath = '/', title }: LayoutProps) {
+export function Layout({ children, showHeader = true, showBackButton = false, backPath = '/', title, whatsappLink, onWhatsAppClick }: LayoutProps) {
   const { member } = useAuth();
   const navigate = useNavigate();
 
@@ -55,7 +57,17 @@ export function Layout({ children, showHeader = true, showBackButton = false, ba
               </h1>
             )}
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
+              {onWhatsAppClick && (
+                <button
+                  onClick={onWhatsAppClick}
+                  className="w-12 h-12 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors"
+                  title="WhatsApp Group"
+                >
+                  <MessageCircle className="w-6 h-6 text-green-400" />
+                </button>
+              )}
+
               <button
                 onClick={handleSignOut}
                 className="w-12 h-12 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors"
@@ -81,15 +93,15 @@ export function Layout({ children, showHeader = true, showBackButton = false, ba
               </div>
 
               <h1 className="text-2xl font-bold mb-1">
-                Hi {member?.first_name || 'there'}!
+                Sandy Rotary Club
               </h1>
 
-              <p className="text-white/80 text-sm">
-                District {member?.district || '5420'}
+              <p className="text-white/80 text-sm mb-1">
+                District {member?.district || '5420'} — {member?.club_name || 'Sandy'}
               </p>
 
-              <p className="text-white/80 text-sm">
-                {member?.club_name || 'Sandy'}
+              <p className="text-white/60 text-xs">
+                Hi {member?.first_name || 'there'}!
               </p>
             </div>
           )}

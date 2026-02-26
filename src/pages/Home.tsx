@@ -1,35 +1,20 @@
 import { useState, useEffect } from 'react';
-import {
-  User,
-  Users,
-  Shield,
-  Calendar,
-  BookOpen,
-  Newspaper,
-  Camera,
-  MessageCircle,
-  Heart,
-  Info,
-  Cake,
-  CalendarPlus,
-  ClipboardCheck,
-  UserCog,
-  UserPlus,
-  Filter,
-  UsersRound,
-  Lightbulb,
-  ListChecks,
-  DollarSign,
-} from 'lucide-react';
+import { MessageCircle } from 'lucide-react';
 import { Layout } from '../components/Layout';
-import { NavCard } from '../components/NavCard';
-import { CardGrid } from '../components/CardGrid';
 import { BottomNav } from '../components/BottomNav';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import { ClubhouseCard } from '../components/home/ClubhouseCard';
+import { MyRotaryImpactCard } from '../components/home/MyRotaryImpactCard';
+import { ServicePipelineCard } from '../components/home/ServicePipelineCard';
+import { ConnectGrowCard } from '../components/home/ConnectGrowCard';
+import { MeetingOpsCard } from '../components/admin/MeetingOpsCard';
+import { InsightDashboardCard } from '../components/admin/InsightDashboardCard';
+import { GrowthPipelineCard } from '../components/admin/GrowthPipelineCard';
+import { CampaignHubCard } from '../components/admin/CampaignHubCard';
 
 export function Home() {
-  const { isAdmin, isLeader } = useAuth();
+  const { isLeader } = useAuth();
   const [activeTab, setActiveTab] = useState<'home' | 'admin'>('home');
   const [whatsappLink, setWhatsappLink] = useState('');
 
@@ -65,7 +50,10 @@ export function Home() {
   };
 
   return (
-    <Layout>
+    <Layout
+      whatsappLink={whatsappLink}
+      onWhatsAppClick={handleWhatsAppClick}
+    >
       <div className="pb-20">
         {isLeader && (
           <div className="flex border-b border-gray-200 bg-white sticky top-0 z-10 shadow-sm">
@@ -87,45 +75,28 @@ export function Home() {
                   : 'text-gray-500'
               }`}
             >
-              Club Administration
+              Command Center
             </button>
           </div>
         )}
 
-      {activeTab === 'home' && (
-        <CardGrid>
-          <NavCard to="/my-data" icon={User} label="My Data" />
-          <NavCard to="/members" icon={Users} label="Members" />
-          <NavCard to="/leadership" icon={Shield} label="Leadership" />
-          <NavCard to="/calendar" icon={Calendar} label="Calendar" />
-          <NavCard to="/refer" icon={UserPlus} label="Refer Someone" />
-          <NavCard to="/attendance-plans" icon={ClipboardCheck} label="My Attendance Plans" />
-          <NavCard to="/stories" icon={BookOpen} label="Story" />
-          <NavCard to="/bulletins" icon={Newspaper} label="Bulletin" />
-          <NavCard to="/selfies" icon={Camera} label="Service Selfies" />
-          <NavCard
-            icon={MessageCircle}
-            label="WhatsApp"
-            onClick={handleWhatsAppClick}
-          />
-          <NavCard to="/deposit-ideas" icon={Lightbulb} label="Deposit Ideas" />
-          <NavCard to="/sponsors" icon={Heart} label="Sponsors" />
-          <NavCard to="/club-info" icon={Info} label="Club Info" />
-        </CardGrid>
-      )}
+        {activeTab === 'home' && (
+          <div className="p-4 space-y-4">
+            <ClubhouseCard />
+            <MyRotaryImpactCard />
+            <ServicePipelineCard />
+            <ConnectGrowCard />
+          </div>
+        )}
 
-      {activeTab === 'admin' && isLeader && (
-        <CardGrid>
-          <NavCard to="/leads" icon={Filter} label="Leads" />
-          <NavCard to="/prospective-members" icon={UsersRound} label="Prospective Members" />
-          <NavCard to="/admin/attendance" icon={ClipboardCheck} label="Attendance Roster" />
-          <NavCard to="/admin/add-event" icon={CalendarPlus} label="Add Calendar Event" />
-          <NavCard to="/admin/leadership-actions" icon={ListChecks} label="Leadership Actions" />
-          <NavCard to="/admin/fundraiser" icon={DollarSign} label="Fundraiser" />
-          <NavCard to="/birthdays" icon={Cake} label="Birthdays" />
-          {isAdmin && <NavCard to="/admin/members" icon={UserCog} label="Manage Members" />}
-        </CardGrid>
-      )}
+        {activeTab === 'admin' && isLeader && (
+          <div className="p-4 space-y-4">
+            <MeetingOpsCard />
+            <InsightDashboardCard />
+            <GrowthPipelineCard />
+            <CampaignHubCard />
+          </div>
+        )}
       </div>
       <BottomNav />
     </Layout>
