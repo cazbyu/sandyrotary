@@ -36,7 +36,8 @@ export function Selfies() {
   const checkAdmin = async () => {
     if (!user) return;
     const { data } = await supabase
-      .from('0012-sr-members')
+      .schema('p0012_rotary')
+      .from('members')
       .select('is_admin')
       .eq('id', user.id)
       .maybeSingle();
@@ -46,7 +47,8 @@ export function Selfies() {
   const loadSelfies = async () => {
     try {
       const { data, error } = await supabase
-        .from('0012-sr-service-selfies')
+        .schema('p0012_rotary')
+        .from('service_selfies')
         .select(
           `
           *,
@@ -74,7 +76,8 @@ export function Selfies() {
 
     try {
       const { error } = await supabase
-        .from('0012-sr-service-selfies')
+        .schema('p0012_rotary')
+        .from('service_selfies')
         .delete()
         .eq('id', selfie.id);
 
@@ -264,7 +267,7 @@ function UploadModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
         data: { publicUrl },
       } = supabase.storage.from('0012-sr-service-selfies').getPublicUrl(fileName);
 
-      const { error: insertError } = await supabase.from('0012-sr-service-selfies').insert({
+      const { error: insertError } = await supabase.schema('p0012_rotary').from('service_selfies').insert({
         image_url: publicUrl,
         caption: caption,
         uploaded_by: user.id,

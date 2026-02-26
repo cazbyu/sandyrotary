@@ -30,7 +30,8 @@ export function ClubInfo() {
   const loadClubData = async () => {
     try {
       const { data: settingsData, error: settingsError } = await supabase
-        .from('0012-sr-club-settings')
+        .schema('p0012_rotary')
+        .from('club_settings')
         .select('key, value');
 
       if (settingsError) throw settingsError;
@@ -43,7 +44,8 @@ export function ClubInfo() {
       setSettings(settingsMap);
 
       const { data: infoData, error: infoError } = await supabase
-        .from('0012-sr-club-info')
+        .schema('p0012_rotary')
+        .from('club_info')
         .select('content')
         .maybeSingle();
 

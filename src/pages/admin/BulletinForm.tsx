@@ -27,7 +27,8 @@ export function BulletinForm() {
   const loadBulletin = async () => {
     try {
       const { data, error } = await supabase
-        .from('0012-sr-bulletins')
+        .schema('p0012_rotary')
+        .from('bulletins')
         .select('*')
         .eq('public_slug', slug)
         .maybeSingle();
@@ -102,13 +103,14 @@ export function BulletinForm() {
 
       if (existingId) {
         const { error } = await supabase
-          .from('0012-sr-bulletins')
+          .schema('p0012_rotary')
+          .from('bulletins')
           .update(bulletinData)
           .eq('id', existingId);
 
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('0012-sr-bulletins').insert([bulletinData]);
+        const { error } = await supabase.schema('p0012_rotary').from('bulletins').insert([bulletinData]);
 
         if (error) throw error;
       }

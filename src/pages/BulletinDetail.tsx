@@ -32,7 +32,8 @@ export function BulletinDetail() {
   const loadBulletin = async () => {
     try {
       const { data, error } = await supabase
-        .from('0012-sr-bulletins')
+        .schema('p0012_rotary')
+        .from('bulletins')
         .select(
           `
           *,

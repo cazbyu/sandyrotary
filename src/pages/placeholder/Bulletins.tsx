@@ -36,7 +36,8 @@ export function Bulletins() {
   const checkAdmin = async () => {
     if (!user) return;
     const { data } = await supabase
-      .from('0012-sr-members')
+      .schema('p0012_rotary')
+      .from('members')
       .select('is_admin')
       .eq('id', user.id)
       .maybeSingle();
@@ -46,7 +47,8 @@ export function Bulletins() {
   const loadBulletins = async () => {
     try {
       let query = supabase
-        .from('0012-sr-bulletins')
+        .schema('p0012_rotary')
+        .from('bulletins')
         .select(
           `
           *,

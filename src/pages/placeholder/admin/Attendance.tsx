@@ -46,7 +46,8 @@ export function Attendance() {
   const loadMeetings = async () => {
     try {
       const { data, error } = await supabase
-        .from('0012-sr-calendar-events')
+        .schema('p0012_rotary')
+        .from('calendar_events')
         .select('id, event_name, start_date, start_time')
         .eq('category', 'Club Meeting')
         .eq('status', 'Active')
@@ -65,7 +66,8 @@ export function Attendance() {
   const loadAttendanceForMeeting = async (eventId: string) => {
     try {
       const { data, error } = await supabase
-        .from('0012-sr-meeting-attendance')
+        .schema('p0012_rotary')
+        .from('meeting_attendance')
         .select(`
           id,
           rsvp_status,
@@ -91,7 +93,8 @@ export function Attendance() {
   const markAttendance = async (attendanceId: string, attended: boolean) => {
     try {
       const { error } = await supabase
-        .from('0012-sr-meeting-attendance')
+        .schema('p0012_rotary')
+        .from('meeting_attendance')
         .update({
           actually_attended: attended,
           marked_at: new Date().toISOString(),
@@ -119,7 +122,8 @@ export function Attendance() {
       await Promise.all(
         attendingRecords.map((record) =>
           supabase
-            .from('0012-sr-meeting-attendance')
+            .schema('p0012_rotary')
+            .from('meeting_attendance')
             .update({
               actually_attended: true,
               marked_at: new Date().toISOString(),

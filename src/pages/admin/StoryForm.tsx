@@ -27,7 +27,8 @@ export function StoryForm() {
   const loadStory = async () => {
     try {
       const { data, error } = await supabase
-        .from('0012-sr-stories')
+        .schema('p0012_rotary')
+        .from('stories')
         .select('*')
         .eq('public_slug', slug)
         .maybeSingle();
@@ -108,13 +109,14 @@ export function StoryForm() {
 
       if (existingId) {
         const { error } = await supabase
-          .from('0012-sr-stories')
+          .schema('p0012_rotary')
+          .from('stories')
           .update(storyData)
           .eq('id', existingId);
 
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('0012-sr-stories').insert([storyData]);
+        const { error } = await supabase.schema('p0012_rotary').from('stories').insert([storyData]);
 
         if (error) throw error;
       }

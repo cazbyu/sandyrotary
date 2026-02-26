@@ -34,7 +34,7 @@ export function AddEvent() {
     setLoading(true);
 
     try {
-      const { error } = await supabase.from('0012-sr-calendar-events').insert({
+      const { error } = await supabase.schema('p0012_rotary').from('calendar_events').insert({
         event_name: formData.eventName,
         status: formData.status,
         category: formData.category,

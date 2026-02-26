@@ -43,7 +43,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchMember = async (email: string) => {
     try {
       const { data, error } = await supabase
-        .from('0012-sr-members')
+        .schema('p0012_rotary')
+        .from('members')
         .select('*')
         .eq('email', email)
         .maybeSingle();
