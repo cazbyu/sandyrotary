@@ -29,7 +29,8 @@ export function Birthdays() {
   const loadCelebrations = async () => {
     try {
       const { data, error } = await supabase
-        .from('0012-sr-members')
+        .schema('p0012_rotary')
+        .from('members')
         .select('id, first_name, last_name, profile_photo_url, birthday, wedding_anniversary, membership_start_date');
 
       if (error) throw error;

@@ -31,7 +31,8 @@ export function Leadership() {
       const currentYear = getCurrentRotaryYear();
 
       const { data, error } = await supabase
-        .from('0012-sr-leadership-roles')
+        .schema('p0012_rotary')
+        .from('leadership_roles')
         .select(
           `
           *,

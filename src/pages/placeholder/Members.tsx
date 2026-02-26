@@ -41,7 +41,8 @@ export function Members() {
   const loadMembers = async () => {
     try {
       const { data, error } = await supabase
-        .from('0012-sr-members')
+        .schema('p0012_rotary')
+        .from('members')
         .select('id, first_name, last_name, profile_photo_url, member_status, member_title')
         .order('last_name', { ascending: true })
         .order('first_name', { ascending: true });

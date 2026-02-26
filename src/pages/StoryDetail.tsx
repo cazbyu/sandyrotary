@@ -33,7 +33,8 @@ export function StoryDetail() {
   const loadStory = async () => {
     try {
       const { data, error } = await supabase
-        .from('0012-sr-stories')
+        .schema('p0012_rotary')
+        .from('stories')
         .select(
           `
           *,

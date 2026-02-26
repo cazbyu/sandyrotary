@@ -34,7 +34,8 @@ export function Home() {
   const loadSettings = async () => {
     try {
       const { data, error } = await supabase
-        .from('0012-sr-club-settings')
+        .schema('p0012_rotary')
+        .from('club_settings')
         .select('value')
         .eq('key', 'whatsapp_group_link')
         .maybeSingle();
