@@ -498,7 +498,7 @@ export function Scorecard() {
                     return (
                       <div
                         key={campaign.id}
-                        onClick={() => navigate(`/fundraisers/${campaign.id}`)}
+                        onClick={() => navigate(`/fundraiser/${campaign.id}`)}
                         className="px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors"
                       >
                         <div className="flex items-center justify-between mb-2">

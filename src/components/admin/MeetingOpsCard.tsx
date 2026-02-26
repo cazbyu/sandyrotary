@@ -44,7 +44,7 @@ interface AssignmentWithMember extends MeetingAssignment {
 
 interface Announcement {
   id: string;
-  action_text: string;
+  assignment: string;
   is_announcement: boolean;
   announcement_approved: boolean;
   created_at: string;
@@ -762,7 +762,7 @@ export function MeetingOpsCard() {
                                   className="flex items-start gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2"
                                 >
                                   <Check className="w-4 h-4 text-green-600 mt-0.5 shrink-0" />
-                                  <span className="text-sm text-green-800 flex-1">{a.action_text}</span>
+                                  <span className="text-sm text-green-800 flex-1">{a.assignment}</span>
                                   <button
                                     onClick={() => handleToggleAnnouncement(a.id, a.announcement_approved)}
                                     disabled={togglingAnnouncement === a.id}
@@ -794,7 +794,7 @@ export function MeetingOpsCard() {
                                     key={a.id}
                                     className="flex items-start gap-2 bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2"
                                   >
-                                    <span className="text-sm text-yellow-800 flex-1">{a.action_text}</span>
+                                    <span className="text-sm text-yellow-800 flex-1">{a.assignment}</span>
                                     <button
                                       onClick={() => handleToggleAnnouncement(a.id, a.announcement_approved)}
                                       disabled={togglingAnnouncement === a.id}
