@@ -8,9 +8,11 @@ import {
   CheckCircle2,
   ChevronDown,
   Send,
+  MessageSquare,
 } from 'lucide-react';
 import { Layout } from '../components/Layout';
 import { BottomNav } from '../components/BottomNav';
+import { SuggestionBox } from '../components/home/SuggestionBox';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 
@@ -157,7 +159,7 @@ export function DepositIdeas() {
           >
             <ArrowLeft className="w-6 h-6 text-white" />
           </button>
-          <h1 className="text-xl font-bold text-white flex-1">Deposit Ideas</h1>
+          <h1 className="text-xl font-bold text-white flex-1">Notes, Ideas &amp; Suggestions</h1>
           <button
             onClick={() => setShowForm(!showForm)}
             className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors"
@@ -368,6 +370,20 @@ export function DepositIdeas() {
               </div>
             </>
           )}
+
+          {/* Quick Suggestions Section */}
+          <div className="mb-6">
+            <h2 className="text-lg font-bold text-[#1B2A4A] mb-3 flex items-center gap-2">
+              <MessageSquare className="w-5 h-5 text-[#1B2A4A]" />
+              Quick Suggestions
+            </h2>
+            <div className="bg-white rounded-xl p-4 shadow-sm">
+              <p className="text-gray-500 text-xs mb-3">
+                Send a quick suggestion to leadership, or keep it private in your own log.
+              </p>
+              <SuggestionBox />
+            </div>
+          </div>
         </div>
       </div>
       <BottomNav />
