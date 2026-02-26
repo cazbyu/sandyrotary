@@ -248,7 +248,7 @@ export function LeadDetail() {
   if (loading) {
     return (
       <Layout showHeader={false}>
-        <div className="min-h-screen bg-[#F5F7FA]">
+        <div className="min-h-screen bg-[#F5F7FA] pb-20">
           <div className="bg-[#1B2A4A] px-4 py-4 flex items-center gap-4">
             <button onClick={() => navigate(-1)} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10">
               <ArrowLeft className="w-6 h-6 text-white" />
@@ -279,7 +279,7 @@ export function LeadDetail() {
 
   return (
     <Layout showHeader={false}>
-      <div className="min-h-screen bg-[#F5F7FA]">
+      <div className="min-h-screen bg-[#F5F7FA] pb-20">
         <div className="bg-[#1B2A4A] px-4 py-4">
           <div className="flex items-center justify-between mb-2">
             <button onClick={() => navigate(-1)} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10">

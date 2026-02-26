@@ -90,7 +90,7 @@ export function ReferSomeone() {
 
   return (
     <Layout showHeader={false}>
-      <div className="min-h-screen bg-[#F5F7FA]">
+      <div className="min-h-screen bg-[#F5F7FA] pb-20">
         <div className="bg-[#1B2A4A] px-4 py-4 flex items-center">
           <button
             onClick={() => navigate(-1)}

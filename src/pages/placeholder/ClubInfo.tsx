@@ -84,7 +84,7 @@ export function ClubInfo() {
   if (loading) {
     return (
       <Layout showHeader={false}>
-        <div className="min-h-screen bg-[#F5F7FA]">
+        <div className="min-h-screen bg-[#F5F7FA] pb-20">
           <div className="bg-[#1B2A4A] px-4 py-4 flex items-center gap-4">
             <button
               onClick={() => navigate(-1)}
@@ -108,7 +108,7 @@ export function ClubInfo() {
 
   return (
     <Layout showHeader={false}>
-      <div className="min-h-screen bg-[#F5F7FA]">
+      <div className="min-h-screen bg-[#F5F7FA] pb-20">
         <div className="bg-[#1B2A4A] px-4 py-4 flex items-center gap-4">
           <button
             onClick={() => navigate(-1)}

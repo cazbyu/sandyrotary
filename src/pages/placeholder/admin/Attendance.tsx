@@ -484,7 +484,7 @@ export function Attendance() {
 
   return (
     <Layout showHeader={false}>
-      <div className="h-screen flex flex-col bg-[#F5F7FA]">
+      <div className="h-screen flex flex-col bg-[#F5F7FA] pb-20">
         <div className="bg-[#1B2A4A] px-4 py-4 flex items-center gap-4 flex-shrink-0">
           <button
             onClick={() => navigate(-1)}

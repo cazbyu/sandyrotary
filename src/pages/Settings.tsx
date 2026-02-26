@@ -173,7 +173,7 @@ export function Settings() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F5F7FA]">
+    <div className="min-h-screen bg-[#F5F7FA] pb-20">
       <header className="bg-[#1B2A4A] shadow-lg pb-8">
         <div className="container mx-auto px-4 pt-6">
           <div className="flex items-center mb-6">
