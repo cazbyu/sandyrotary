@@ -90,7 +90,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const currentYear = month >= 6 ? `${year}-${year + 1}` : `${year - 1}-${year}`;
 
       const { data } = await supabase
-        .from('0012-sr-leadership-roles')
+        .schema('p0012_rotary')
+        .from('leadership_roles')
         .select('id')
         .eq('member_id', memberId)
         .eq('year', currentYear)
@@ -109,7 +110,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     try {
       const memberQuery = supabase
-        .from('0012-sr-members')
+        .schema('p0012_rotary')
+        .from('members')
         .select('*')
         .eq('id', userId)
         .maybeSingle();
@@ -135,7 +137,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const emailQuery = supabase
-        .from('0012-sr-members')
+        .schema('p0012_rotary')
+        .from('members')
         .select('*')
         .eq('home_email', userEmail)
         .maybeSingle();
@@ -152,7 +155,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (memberByEmail) {
         const { data: updated } = await supabase
-          .from('0012-sr-members')
+          .schema('p0012_rotary')
+          .from('members')
           .update({ id: userId, updated_at: new Date().toISOString() })
           .eq('home_email', userEmail)
           .select()

@@ -36,7 +36,8 @@ export function ProspectiveMembers() {
   const loadLeads = async () => {
     try {
       const { data, error } = await supabase
-        .from('0012-sr-leads')
+        .schema('p0012_rotary')
+        .from('leads')
         .select('id, first_name, last_name, stage, source, referred_by, prospect_date')
         .not('stage', 'in', '("Declined","Inactive")')
         .order('created_at', { ascending: false });
@@ -48,7 +49,8 @@ export function ProspectiveMembers() {
           let referrer_name = undefined;
           if (lead.referred_by) {
             const { data: referrer } = await supabase
-              .from('0012-sr-members')
+              .schema('p0012_rotary')
+              .from('members')
               .select('first_name, last_name')
               .eq('id', lead.referred_by)
               .maybeSingle();

@@ -43,7 +43,8 @@ export function Settings() {
   const fetchClubSettings = async () => {
     try {
       const { data, error } = await supabase
-        .from('0012-sr-club-settings')
+        .schema('p0012_rotary')
+        .from('club_settings')
         .select('*');
 
       if (error) {
@@ -70,7 +71,8 @@ export function Settings() {
 
     try {
       const { error } = await supabase
-        .from('0012-sr-members')
+        .schema('p0012_rotary')
+        .from('members')
         .update({ share_contact_info: shareContactInfo })
         .eq('id', member.id);
 
@@ -149,7 +151,8 @@ export function Settings() {
 
       for (const update of updates) {
         const { error } = await supabase
-          .from('0012-sr-club-settings')
+          .schema('p0012_rotary')
+          .from('club_settings')
           .update({ setting_value: update.setting_value })
           .eq('setting_key', update.setting_key);
 

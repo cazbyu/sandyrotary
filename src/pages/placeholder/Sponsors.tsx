@@ -26,7 +26,8 @@ export function Sponsors() {
   const loadSponsors = async () => {
     try {
       const { data, error } = await supabase
-        .from('0012-sr-sponsors')
+        .schema('p0012_rotary')
+        .from('sponsors')
         .select('*')
         .order('sort_order', { ascending: true });
 

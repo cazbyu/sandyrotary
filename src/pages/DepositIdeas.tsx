@@ -80,13 +80,15 @@ export function DepositIdeas() {
     try {
       const [approvedRes, myRes] = await Promise.all([
         supabase
-          .from('0012-sr-notes')
+          .schema('p0012_rotary')
+          .from('notes')
           .select('*')
           .eq('deposit_idea', true)
           .eq('deposit_idea_approved', true)
           .order('created_at', { ascending: false }),
         supabase
-          .from('0012-sr-notes')
+          .schema('p0012_rotary')
+          .from('notes')
           .select('*')
           .eq('deposit_idea', true)
           .eq('user_id', user.id)
@@ -111,7 +113,7 @@ export function DepositIdeas() {
 
     setSubmitting(true);
     try {
-      const { error } = await supabase.from('0012-sr-notes').insert({
+      const { error } = await supabase.schema('p0012_rotary').from('notes').insert({
         user_id: user.id,
         member_id: member?.id || null,
         title: title.trim(),

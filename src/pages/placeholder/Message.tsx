@@ -42,7 +42,8 @@ export function Message() {
   const loadMembers = async () => {
     try {
       const { data, error } = await supabase
-        .from('0012-sr-members')
+        .schema('p0012_rotary')
+        .from('members')
         .select('id, first_name, last_name, profile_photo_url, preferred_phone, mobile_phone, share_contact_info')
         .eq('share_contact_info', true)
         .order('last_name', { ascending: true })

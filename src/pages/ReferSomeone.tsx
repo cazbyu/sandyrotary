@@ -33,7 +33,8 @@ export function ReferSomeone() {
 
     try {
       const { data: lead, error: leadError } = await supabase
-        .from('0012-sr-leads')
+        .schema('p0012_rotary')
+        .from('leads')
         .insert({
           first_name: formData.first_name.trim(),
           last_name: formData.last_name.trim(),
@@ -51,7 +52,8 @@ export function ReferSomeone() {
       if (leadError) throw leadError;
 
       const { data: memberData } = await supabase
-        .from('0012-sr-members')
+        .schema('p0012_rotary')
+        .from('members')
         .select('first_name, last_name')
         .eq('id', member!.id)
         .single();
@@ -66,7 +68,8 @@ export function ReferSomeone() {
       }
 
       await supabase
-        .from('0012-sr-lead-activities')
+        .schema('p0012_rotary')
+        .from('lead_activities')
         .insert({
           lead_id: lead.id,
           activity_type: 'Note',

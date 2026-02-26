@@ -74,7 +74,8 @@ export function LeadDetail() {
   const loadLeadData = async () => {
     try {
       const { data: leadData, error: leadError } = await supabase
-        .from('0012-sr-leads')
+        .schema('p0012_rotary')
+        .from('leads')
         .select('*')
         .eq('id', id)
         .single();
@@ -86,7 +87,8 @@ export function LeadDetail() {
 
       if (leadData.referred_by) {
         const { data: referrer } = await supabase
-          .from('0012-sr-members')
+          .schema('p0012_rotary')
+          .from('members')
           .select('first_name, last_name')
           .eq('id', leadData.referred_by)
           .maybeSingle();
@@ -95,7 +97,8 @@ export function LeadDetail() {
 
       if (leadData.assigned_to) {
         const { data: assignee } = await supabase
-          .from('0012-sr-members')
+          .schema('p0012_rotary')
+          .from('members')
           .select('first_name, last_name')
           .eq('id', leadData.assigned_to)
           .maybeSingle();
@@ -111,7 +114,8 @@ export function LeadDetail() {
       });
 
       const { data: activitiesData, error: activitiesError } = await supabase
-        .from('0012-sr-lead-activities')
+        .schema('p0012_rotary')
+        .from('lead_activities')
         .select('*')
         .eq('lead_id', id)
         .order('created_at', { ascending: false });
@@ -123,7 +127,8 @@ export function LeadDetail() {
           let performer_name = undefined;
           if (activity.performed_by) {
             const { data: performer } = await supabase
-              .from('0012-sr-members')
+              .schema('p0012_rotary')
+              .from('members')
               .select('first_name, last_name')
               .eq('id', activity.performed_by)
               .maybeSingle();
@@ -144,7 +149,7 @@ export function LeadDetail() {
   const handleAddActivity = async () => {
     if (!newActivity.description.trim()) return;
     try {
-      await supabase.from('0012-sr-lead-activities').insert({
+      await supabase.schema('p0012_rotary').from('lead_activities').insert({
         lead_id: id,
         activity_type: newActivity.type,
         description: newActivity.description.trim(),
@@ -176,8 +181,8 @@ export function LeadDetail() {
       };
       if (dateMap[newStage]) updates[dateMap[newStage]] = today;
 
-      await supabase.from('0012-sr-leads').update(updates).eq('id', id);
-      await supabase.from('0012-sr-lead-activities').insert({
+      await supabase.schema('p0012_rotary').from('leads').update(updates).eq('id', id);
+      await supabase.schema('p0012_rotary').from('lead_activities').insert({
         lead_id: id,
         activity_type: 'Stage Change',
         description: `Moved to ${newStage}`,
@@ -198,7 +203,7 @@ export function LeadDetail() {
       : [...lead.tags, tag];
 
     try {
-      await supabase.from('0012-sr-leads').update({ tags: newTags }).eq('id', id);
+      await supabase.schema('p0012_rotary').from('leads').update({ tags: newTags }).eq('id', id);
       setLead({ ...lead, tags: newTags });
     } catch (error) {
       console.error('Error updating tags:', error);

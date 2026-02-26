@@ -52,7 +52,8 @@ export function MemberDetail() {
   const loadMemberData = async () => {
     try {
       const { data: memberData, error: memberError } = await supabase
-        .from('0012-sr-members')
+        .schema('p0012_rotary')
+        .from('members')
         .select('*')
         .eq('id', id)
         .maybeSingle();
@@ -62,7 +63,8 @@ export function MemberDetail() {
       setMember(memberData);
 
       const { data: socialData, error: socialError } = await supabase
-        .from('0012-sr-member-social-media')
+        .schema('p0012_rotary')
+        .from('member_social_media')
         .select('*')
         .eq('member_id', id);
 

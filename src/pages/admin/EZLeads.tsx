@@ -55,7 +55,8 @@ export function EZLeads() {
   const loadLeads = async () => {
     try {
       const { data: leadsData, error } = await supabase
-        .from('0012-sr-leads')
+        .schema('p0012_rotary')
+        .from('leads')
         .select('*')
         .order('created_at', { ascending: false });
 
@@ -68,7 +69,8 @@ export function EZLeads() {
 
           if (lead.referred_by) {
             const { data: referrer } = await supabase
-              .from('0012-sr-members')
+              .schema('p0012_rotary')
+              .from('members')
               .select('first_name, last_name')
               .eq('id', lead.referred_by)
               .maybeSingle();
@@ -79,7 +81,8 @@ export function EZLeads() {
 
           if (lead.assigned_to) {
             const { data: assignee } = await supabase
-              .from('0012-sr-members')
+              .schema('p0012_rotary')
+              .from('members')
               .select('first_name, last_name')
               .eq('id', lead.assigned_to)
               .maybeSingle();

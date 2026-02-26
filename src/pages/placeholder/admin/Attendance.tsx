@@ -140,22 +140,26 @@ export function Attendance() {
 
       const [membersRes, plansRes, recordsRes, eventsRes] = await Promise.all([
         supabase
-          .from('0012-sr-members')
+          .schema('p0012_rotary')
+          .from('members')
           .select('*')
           .eq('member_status', 'Active')
           .order('last_name', { ascending: true }),
         supabase
-          .from('0012-sr-attendance-plans')
+          .schema('p0012_rotary')
+          .from('attendance_plans')
           .select('member_id, meeting_date, is_attending, event_id')
           .gte('meeting_date', startStr)
           .lte('meeting_date', endStr),
         supabase
-          .from('0012-sr-attendance-records')
+          .schema('p0012_rotary')
+          .from('attendance_records')
           .select('member_id, meeting_date, status')
           .gte('meeting_date', startStr)
           .lte('meeting_date', endStr),
         supabase
-          .from('0012-sr-calendar-events')
+          .schema('p0012_rotary')
+          .from('calendar_events')
           .select('id, event_name, start_date')
           .gte('start_date', windowStartDate.toISOString())
           .lte('start_date', windowEndDate.toISOString())
@@ -243,7 +247,8 @@ export function Attendance() {
 
     try {
       const { error } = await supabase
-        .from('0012-sr-attendance-plans')
+        .schema('p0012_rotary')
+        .from('attendance_plans')
         .upsert(
           {
             member_id: memberId,
@@ -257,7 +262,7 @@ export function Attendance() {
 
       if (error) throw error;
 
-      await supabase.from('0012-sr-attendance-plan-history').insert({
+      await supabase.schema('p0012_rotary').from('attendance_plan_history').insert({
         member_id: memberId,
         meeting_date: dateStr,
         event_id: col.event?.id ?? null,
@@ -286,7 +291,8 @@ export function Attendance() {
 
     try {
       const { error } = await supabase
-        .from('0012-sr-attendance-records')
+        .schema('p0012_rotary')
+        .from('attendance_records')
         .upsert(
           {
             member_id: memberId,

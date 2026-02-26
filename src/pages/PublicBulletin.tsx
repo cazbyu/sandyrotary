@@ -30,7 +30,8 @@ export function PublicBulletin() {
   const loadBulletin = async () => {
     try {
       const { data, error } = await supabase
-        .from('0012-sr-bulletins')
+        .schema('p0012_rotary')
+        .from('bulletins')
         .select(
           `
           *,
@@ -57,7 +58,8 @@ export function PublicBulletin() {
   const loadClubSettings = async () => {
     try {
       const { data } = await supabase
-        .from('0012-sr-club-settings')
+        .schema('p0012_rotary')
+        .from('club_settings')
         .select('value')
         .eq('key', 'club_website')
         .maybeSingle();

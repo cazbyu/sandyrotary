@@ -88,10 +88,11 @@ export function LeadershipActions() {
   const loadActions = useCallback(async () => {
     try {
       const query = supabase
-        .from('0012-sr-leadership-actions')
+        .schema('p0012_rotary')
+        .from('leadership_actions')
         .select(`
           *,
-          responsible_member:responsible_member_id("0012-sr-members"(first_name, last_name))
+          responsible_member:responsible_member_id("members"(first_name, last_name))
         `)
         .order('due_date', { ascending: true, nullsFirst: false })
         .order('created_at', { ascending: false });
@@ -101,7 +102,7 @@ export function LeadershipActions() {
 
       const mapped = (data || []).map((a: any) => ({
         ...a,
-        responsible_member: a.responsible_member?.['0012-sr-members'] ?? null,
+        responsible_member: a.responsible_member?.['members'] ?? null,
       }));
 
       setActions(mapped);
@@ -109,7 +110,8 @@ export function LeadershipActions() {
       console.error('Error loading actions:', error);
       try {
         const { data, error: fallbackError } = await supabase
-          .from('0012-sr-leadership-actions')
+          .schema('p0012_rotary')
+          .from('leadership_actions')
           .select('*')
           .order('due_date', { ascending: true, nullsFirst: false })
           .order('created_at', { ascending: false });
@@ -125,7 +127,8 @@ export function LeadershipActions() {
   const loadMembers = useCallback(async () => {
     try {
       const { data, error } = await supabase
-        .from('0012-sr-members')
+        .schema('p0012_rotary')
+        .from('members')
         .select('id, first_name, last_name')
         .order('last_name')
         .order('first_name');
@@ -144,7 +147,8 @@ export function LeadershipActions() {
   const loadNotesForAction = async (actionId: string) => {
     try {
       const { data, error } = await supabase
-        .from('0012-sr-leadership-action-notes')
+        .schema('p0012_rotary')
+        .from('leadership_action_notes')
         .select(`
           id, action_id, note_id, created_at,
           note:note_id(id, title, content, created_at, attachment_url)
@@ -176,7 +180,7 @@ export function LeadershipActions() {
 
     setSubmitting(true);
     try {
-      const { error } = await supabase.from('0012-sr-leadership-actions').insert({
+      const { error } = await supabase.schema('p0012_rotary').from('leadership_actions').insert({
         assignment: newAssignment.trim(),
         responsible_member_id: newResponsible || null,
         due_date: newDueDate || null,
@@ -202,7 +206,8 @@ export function LeadershipActions() {
   const handleUpdateStatus = async (actionId: string, status: string) => {
     try {
       const { error } = await supabase
-        .from('0012-sr-leadership-actions')
+        .schema('p0012_rotary')
+        .from('leadership_actions')
         .update({ status, updated_at: new Date().toISOString() })
         .eq('id', actionId);
 
@@ -220,7 +225,8 @@ export function LeadershipActions() {
     setAddingNote(true);
     try {
       const { data: noteData, error: noteError } = await supabase
-        .from('0012-sr-notes')
+        .schema('p0012_rotary')
+        .from('notes')
         .insert({
           user_id: user.id,
           member_id: member?.id || null,
@@ -233,7 +239,8 @@ export function LeadershipActions() {
       if (noteError) throw noteError;
 
       const { error: linkError } = await supabase
-        .from('0012-sr-leadership-action-notes')
+        .schema('p0012_rotary')
+        .from('leadership_action_notes')
         .insert({
           action_id: actionId,
           note_id: noteData.id,

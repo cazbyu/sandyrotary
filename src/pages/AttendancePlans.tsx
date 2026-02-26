@@ -147,13 +147,15 @@ export function AttendancePlans() {
 
       const [plansRes, eventsRes] = await Promise.all([
         supabase
-          .from('0012-sr-attendance-plans')
+          .schema('p0012_rotary')
+          .from('attendance_plans')
           .select('meeting_date, is_attending')
           .eq('member_id', member.id)
           .gte('meeting_date', startStr)
           .lte('meeting_date', endStr),
         supabase
-          .from('0012-sr-calendar-events')
+          .schema('p0012_rotary')
+          .from('calendar_events')
           .select('id, event_name, start_date')
           .gte('start_date', windowStartDate.toISOString())
           .lte('start_date', windowEndDate.toISOString())
@@ -201,7 +203,8 @@ export function AttendancePlans() {
 
     try {
       const { error } = await supabase
-        .from('0012-sr-attendance-plans')
+        .schema('p0012_rotary')
+        .from('attendance_plans')
         .upsert(
           {
             member_id: member.id,
@@ -215,7 +218,7 @@ export function AttendancePlans() {
 
       if (error) throw error;
 
-      await supabase.from('0012-sr-attendance-plan-history').insert({
+      await supabase.schema('p0012_rotary').from('attendance_plan_history').insert({
         member_id: member.id,
         meeting_date: dateStr,
         event_id: event?.id ?? null,

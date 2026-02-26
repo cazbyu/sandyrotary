@@ -28,7 +28,8 @@ export function ManageMembers() {
   const loadMembers = async () => {
     try {
       const { data, error } = await supabase
-        .from('0012-sr-members')
+        .schema('p0012_rotary')
+        .from('members')
         .select('*')
         .order('last_name', { ascending: true });
 
@@ -160,7 +161,8 @@ function EditMemberModal({
 
     try {
       const { error } = await supabase
-        .from('0012-sr-members')
+        .schema('p0012_rotary')
+        .from('members')
         .update({
           is_admin: formData.isAdmin,
           member_status: formData.memberStatus,

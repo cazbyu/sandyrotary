@@ -46,7 +46,8 @@ export function CalendarPage() {
   const loadCalendarData = async () => {
     try {
       const { data: eventsData, error: eventsError } = await supabase
-        .from('0012-sr-calendar-events')
+        .schema('p0012_rotary')
+        .from('calendar_events')
         .select('*')
         .eq('status', 'Active')
         .gte('start_date', new Date().toISOString().split('T')[0])
@@ -57,7 +58,8 @@ export function CalendarPage() {
       setEvents(eventsData || []);
 
       const { data: settingsData, error: settingsError } = await supabase
-        .from('0012-sr-club-settings')
+        .schema('p0012_rotary')
+        .from('club_settings')
         .select('key, value')
         .in('key', ['google_calendar_id', 'rsvp_deadline_days_before']);
 
@@ -76,7 +78,8 @@ export function CalendarPage() {
       if (user && eventsData && eventsData.length > 0) {
         const eventIds = eventsData.map((e) => e.id);
         const { data: attendanceData, error: attendanceError } = await supabase
-          .from('0012-sr-meeting-attendance')
+          .schema('p0012_rotary')
+          .from('meeting_attendance')
           .select('*')
           .eq('member_id', user.id)
           .in('event_id', eventIds);
@@ -103,7 +106,8 @@ export function CalendarPage() {
 
     try {
       const { error } = await supabase
-        .from('0012-sr-meeting-attendance')
+        .schema('p0012_rotary')
+        .from('meeting_attendance')
         .update({
           rsvp_status: newStatus,
           rsvp_updated_at: new Date().toISOString(),

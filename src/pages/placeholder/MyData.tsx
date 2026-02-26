@@ -109,7 +109,8 @@ export function MyData() {
   const loadMemberData = async () => {
     try {
       const { data: memberData, error: memberError } = await supabase
-        .from('0012-sr-members')
+        .schema('p0012_rotary')
+        .from('members')
         .select('*')
         .eq('id', member!.id)
         .maybeSingle();
@@ -156,7 +157,8 @@ export function MyData() {
       }
 
       const { data: socialData, error: socialError } = await supabase
-        .from('0012-sr-member-social-media')
+        .schema('p0012_rotary')
+        .from('member_social_media')
         .select('*')
         .eq('member_id', member!.id);
 
@@ -198,7 +200,8 @@ export function MyData() {
       setFormData(prev => ({ ...prev, profile_photo_url: publicUrl }));
 
       const { error: updateError } = await supabase
-        .from('0012-sr-members')
+        .schema('p0012_rotary')
+        .from('members')
         .update({ profile_photo_url: publicUrl })
         .eq('id', member!.id);
 
@@ -248,7 +251,8 @@ export function MyData() {
 
     try {
       const { error: updateError } = await supabase
-        .from('0012-sr-members')
+        .schema('p0012_rotary')
+        .from('members')
         .update({
           first_name: formData.first_name,
           last_name: formData.last_name,
@@ -287,7 +291,8 @@ export function MyData() {
 
       const existingSocialIds = socialMedia.filter(s => s.id && !s.isNew).map(s => s.id);
       const { error: deleteError } = await supabase
-        .from('0012-sr-member-social-media')
+        .schema('p0012_rotary')
+        .from('member_social_media')
         .delete()
         .eq('member_id', member!.id)
         .not('id', 'in', `(${existingSocialIds.join(',')})`);
@@ -297,7 +302,8 @@ export function MyData() {
       const newSocialMedia = socialMedia.filter(s => s.isNew || !s.id);
       if (newSocialMedia.length > 0) {
         const { error: insertError } = await supabase
-          .from('0012-sr-member-social-media')
+          .schema('p0012_rotary')
+          .from('member_social_media')
           .insert(
             newSocialMedia.map(s => ({
               member_id: member!.id,

@@ -294,7 +294,8 @@ export function ContactListView({ leads, isAdmin, onRefresh }: ContactListViewPr
                 const lead = leads.find((l) => l.id === id);
                 if (lead && !(lead.tags || []).includes(bulkTag)) {
                   await supabase
-                    .from('0012-sr-leads')
+                    .schema('p0012_rotary')
+                    .from('leads')
                     .update({ tags: [...(lead.tags || []), bulkTag] })
                     .eq('id', id);
                 }

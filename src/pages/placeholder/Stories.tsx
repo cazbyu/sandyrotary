@@ -36,7 +36,8 @@ export function Stories() {
   const checkAdmin = async () => {
     if (!user) return;
     const { data } = await supabase
-      .from('0012-sr-members')
+      .schema('p0012_rotary')
+      .from('members')
       .select('is_admin')
       .eq('id', user.id)
       .maybeSingle();
@@ -46,7 +47,8 @@ export function Stories() {
   const loadStories = async () => {
     try {
       let query = supabase
-        .from('0012-sr-stories')
+        .schema('p0012_rotary')
+        .from('stories')
         .select(
           `
           *,
