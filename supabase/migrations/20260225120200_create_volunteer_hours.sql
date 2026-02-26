@@ -1,8 +1,8 @@
 /*
   # Create Volunteer Hours Tracking
 
-  1. New Table
-    - `0012-sr-volunteer-hours`
+  1. New Table (in p0012_rotary schema)
+    - `volunteer_hours`
       - `id` (uuid, primary key)
       - `member_id` (uuid, FK to members)
       - `hours` (numeric, not null)
@@ -16,9 +16,9 @@
     - Leaders can read and insert hours for any member
 */
 
-CREATE TABLE IF NOT EXISTS "0012-sr-volunteer-hours" (
+CREATE TABLE IF NOT EXISTS p0012_rotary.volunteer_hours (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  member_id uuid NOT NULL REFERENCES "0012-sr-members"(id),
+  member_id uuid NOT NULL REFERENCES p0012_rotary.members(id),
   hours numeric(6,2) NOT NULL CHECK (hours > 0),
   description text,
   service_date date NOT NULL,
@@ -26,30 +26,30 @@ CREATE TABLE IF NOT EXISTS "0012-sr-volunteer-hours" (
   created_at timestamptz DEFAULT now()
 );
 
-ALTER TABLE "0012-sr-volunteer-hours" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE p0012_rotary.volunteer_hours ENABLE ROW LEVEL SECURITY;
 
 -- Members can read their own hours
 CREATE POLICY "Members can read own hours"
-  ON "0012-sr-volunteer-hours"
+  ON p0012_rotary.volunteer_hours
   FOR SELECT
   TO authenticated
   USING (member_id = auth.uid());
 
 -- Members can insert their own hours
 CREATE POLICY "Members can insert own hours"
-  ON "0012-sr-volunteer-hours"
+  ON p0012_rotary.volunteer_hours
   FOR INSERT
   TO authenticated
   WITH CHECK (member_id = auth.uid());
 
 -- Leaders can read all hours
 CREATE POLICY "Leaders can read all hours"
-  ON "0012-sr-volunteer-hours"
+  ON p0012_rotary.volunteer_hours
   FOR SELECT
   TO authenticated
   USING (
     EXISTS (
-      SELECT 1 FROM "0012-sr-leadership-roles" lr
+      SELECT 1 FROM p0012_rotary.leadership_roles lr
       WHERE lr.member_id = auth.uid()
         AND lr.year = (
           CASE
@@ -65,12 +65,12 @@ CREATE POLICY "Leaders can read all hours"
 
 -- Leaders can insert hours for any member
 CREATE POLICY "Leaders can insert hours for any member"
-  ON "0012-sr-volunteer-hours"
+  ON p0012_rotary.volunteer_hours
   FOR INSERT
   TO authenticated
   WITH CHECK (
     EXISTS (
-      SELECT 1 FROM "0012-sr-leadership-roles" lr
+      SELECT 1 FROM p0012_rotary.leadership_roles lr
       WHERE lr.member_id = auth.uid()
         AND lr.year = (
           CASE

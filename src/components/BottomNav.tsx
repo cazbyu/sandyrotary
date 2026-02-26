@@ -1,22 +1,15 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, Users, Calendar, Activity, Settings } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { Home, Users, Calendar, BarChart3, Settings } from 'lucide-react';
 
 export function BottomNav() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isLeader } = useAuth();
 
   const navItems = [
     { key: 'home', label: 'Home', icon: Home, path: '/' },
     { key: 'members', label: 'Members', icon: Users, path: '/members' },
     { key: 'calendar', label: 'Calendar', icon: Calendar, path: '/calendar' },
-    {
-      key: 'activity',
-      label: 'Activity',
-      icon: Activity,
-      path: isLeader ? '/leads' : '/refer',
-    },
+    { key: 'scorecard', label: 'Scorecard', icon: BarChart3, path: '/scorecard' },
     { key: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
   ];
 

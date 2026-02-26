@@ -1,10 +1,10 @@
 /*
   # Create Fundraiser Campaigns
 
-  1. New Table
-    - `0012-sr-fundraiser-campaigns`
+  1. New Table (in p0012_rotary schema)
+    - `fundraiser_campaigns`
       - `id` (uuid, primary key)
-      - `name` (text, not null) - e.g., "March-2-Africa"
+      - `name` (text, not null)
       - `description` (text, optional)
       - `goal_amount` (numeric)
       - `current_amount` (numeric, default 0)
@@ -19,7 +19,7 @@
     - Leaders can manage campaigns
 */
 
-CREATE TABLE IF NOT EXISTS "0012-sr-fundraiser-campaigns" (
+CREATE TABLE IF NOT EXISTS p0012_rotary.fundraiser_campaigns (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name text NOT NULL,
   description text,
@@ -32,23 +32,23 @@ CREATE TABLE IF NOT EXISTS "0012-sr-fundraiser-campaigns" (
   created_at timestamptz DEFAULT now()
 );
 
-ALTER TABLE "0012-sr-fundraiser-campaigns" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE p0012_rotary.fundraiser_campaigns ENABLE ROW LEVEL SECURITY;
 
 -- All authenticated users can read active campaigns
 CREATE POLICY "Authenticated users can read active campaigns"
-  ON "0012-sr-fundraiser-campaigns"
+  ON p0012_rotary.fundraiser_campaigns
   FOR SELECT
   TO authenticated
   USING (is_active = true);
 
 -- Leaders can read all campaigns
 CREATE POLICY "Leaders can read all campaigns"
-  ON "0012-sr-fundraiser-campaigns"
+  ON p0012_rotary.fundraiser_campaigns
   FOR SELECT
   TO authenticated
   USING (
     EXISTS (
-      SELECT 1 FROM "0012-sr-leadership-roles" lr
+      SELECT 1 FROM p0012_rotary.leadership_roles lr
       WHERE lr.member_id = auth.uid()
         AND lr.year = (
           CASE
@@ -64,12 +64,12 @@ CREATE POLICY "Leaders can read all campaigns"
 
 -- Leaders can insert campaigns
 CREATE POLICY "Leaders can insert campaigns"
-  ON "0012-sr-fundraiser-campaigns"
+  ON p0012_rotary.fundraiser_campaigns
   FOR INSERT
   TO authenticated
   WITH CHECK (
     EXISTS (
-      SELECT 1 FROM "0012-sr-leadership-roles" lr
+      SELECT 1 FROM p0012_rotary.leadership_roles lr
       WHERE lr.member_id = auth.uid()
         AND lr.year = (
           CASE
@@ -85,12 +85,12 @@ CREATE POLICY "Leaders can insert campaigns"
 
 -- Leaders can update campaigns
 CREATE POLICY "Leaders can update campaigns"
-  ON "0012-sr-fundraiser-campaigns"
+  ON p0012_rotary.fundraiser_campaigns
   FOR UPDATE
   TO authenticated
   USING (
     EXISTS (
-      SELECT 1 FROM "0012-sr-leadership-roles" lr
+      SELECT 1 FROM p0012_rotary.leadership_roles lr
       WHERE lr.member_id = auth.uid()
         AND lr.year = (
           CASE
@@ -105,7 +105,7 @@ CREATE POLICY "Leaders can update campaigns"
   )
   WITH CHECK (
     EXISTS (
-      SELECT 1 FROM "0012-sr-leadership-roles" lr
+      SELECT 1 FROM p0012_rotary.leadership_roles lr
       WHERE lr.member_id = auth.uid()
         AND lr.year = (
           CASE

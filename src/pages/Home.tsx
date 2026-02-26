@@ -81,7 +81,7 @@ export function Home() {
                   : 'text-gray-500'
               }`}
             >
-              Command Center
+              Club Admin
             </button>
           </div>
         )}

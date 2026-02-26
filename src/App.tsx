@@ -39,6 +39,8 @@ import { ClubHub } from './pages/hubs/ClubHub';
 import { ConnectGrowHub } from './pages/hubs/ConnectGrowHub';
 import { ServiceGalleryHub } from './pages/hubs/ServiceGalleryHub';
 import { Suggestions } from './pages/Suggestions';
+import { FundraiserDetail } from './pages/FundraiserDetail';
+import { Scorecard } from './pages/Scorecard';
 
 function App() {
   return (
@@ -73,12 +75,14 @@ function App() {
           <Route path="/prospective-members" element={<ProtectedRoute requireLeader><ProspectiveMembers /></ProtectedRoute>} />
           <Route path="/attendance-plans" element={<ProtectedRoute><AttendancePlans /></ProtectedRoute>} />
           <Route path="/deposit-ideas" element={<ProtectedRoute><DepositIdeas /></ProtectedRoute>} />
+          <Route path="/scorecard" element={<ProtectedRoute><Scorecard /></ProtectedRoute>} />
 
           <Route path="/leads" element={<ProtectedRoute requireLeader><EZLeads /></ProtectedRoute>} />
           <Route path="/leads/:id" element={<ProtectedRoute requireLeader><LeadDetail /></ProtectedRoute>} />
 
           <Route path="/admin/add-event" element={<ProtectedRoute requireLeader><AddEvent /></ProtectedRoute>} />
           <Route path="/admin/leadership-actions" element={<ProtectedRoute requireLeader><LeadershipActions /></ProtectedRoute>} />
+          <Route path="/fundraiser/:id" element={<ProtectedRoute requireLeader><FundraiserDetail /></ProtectedRoute>} />
           <Route path="/admin/fundraiser" element={<ProtectedRoute requireLeader><Fundraiser /></ProtectedRoute>} />
           <Route path="/admin/attendance" element={<ProtectedRoute requireLeader><Attendance /></ProtectedRoute>} />
           <Route path="/admin/members" element={<ProtectedRoute requireAdmin><ManageMembers /></ProtectedRoute>} />

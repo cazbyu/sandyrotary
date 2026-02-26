@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Search, ChevronRight, User } from 'lucide-react';
 import { Layout } from '../../components/Layout';
+import { BottomNav } from '../../components/BottomNav';
 import { supabase } from '../../lib/supabase';
 
 interface Member {
@@ -68,7 +69,7 @@ export function Members() {
 
   return (
     <Layout showHeader={false}>
-      <div className="min-h-screen bg-[#F5F7FA]">
+      <div className="min-h-screen bg-[#F5F7FA] pb-20">
         <div className="bg-[#1B2A4A] px-4 py-4 flex items-center gap-4">
           <button
             onClick={() => navigate(-1)}
@@ -149,6 +150,7 @@ export function Members() {
           )}
         </div>
       </div>
+      <BottomNav />
     </Layout>
   );
 }
