@@ -220,7 +220,7 @@ export function Attendance() {
       if (record) return record.status;
 
       const plan = plans[dateStr]?.find((p) => p.member_id === memberId);
-      if (plan && !plan.is_attending) return 'busy';
+      if (plan) return plan.is_attending ? 'attending' : 'busy';
 
       if (!col.isMeeting) return 'busy';
       if (col.isSocial) return 'busy';

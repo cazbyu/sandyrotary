@@ -114,6 +114,11 @@ export function MeetingOpsCard() {
   const [activePostSurvey, setActivePostSurvey] = useState<PostEventSurvey | null>(null);
   const [creatingPostSurvey, setCreatingPostSurvey] = useState(false);
 
+  // Collapsible section states
+  const [showBirthdays, setShowBirthdays] = useState(true);
+  const [showPreSurvey, setShowPreSurvey] = useState(true);
+  const [showPostSurvey, setShowPostSurvey] = useState(true);
+
   // Upcoming Meetings state
   const [showUpcoming, setShowUpcoming] = useState(false);
   const [expandedDate, setExpandedDate] = useState<string | null>(null);
@@ -824,42 +829,59 @@ export function MeetingOpsCard() {
 
       {/* Section 2: Birthdays and Anniversaries */}
       <div className="mb-5">
-        <div className="flex items-center justify-between mb-3">
+        <button
+          onClick={() => setShowBirthdays(!showBirthdays)}
+          className="w-full flex items-center justify-between mb-3"
+        >
           <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
             Birthdays &amp; Anniversaries
           </h3>
-          <button
-            onClick={() => navigate('/birthdays')}
-            className="text-sm text-[#D94F4F] hover:text-[#B83E3E] font-medium flex items-center gap-1"
-          >
-            See All
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
-
-        <p className="text-xs text-gray-400 mb-2">Coming up in the next 4 weeks</p>
-
-        {loadingCelebrations ? (
-          <div className="flex justify-center py-4">
-            <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+          <div className="flex items-center gap-2">
+            <span
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate('/birthdays');
+              }}
+              className="text-sm text-[#D94F4F] hover:text-[#B83E3E] font-medium flex items-center gap-1"
+            >
+              See All
+              <ChevronRight className="w-4 h-4" />
+            </span>
+            <ChevronDown
+              className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${
+                showBirthdays ? 'rotate-180' : ''
+              }`}
+            />
           </div>
-        ) : celebrations.length === 0 ? (
-          <p className="text-sm text-gray-500 py-2">No upcoming birthdays or anniversaries</p>
-        ) : (
-          <div className="space-y-2">
-            {celebrations.map((c) => (
-              <div
-                key={c.id}
-                className="flex items-center gap-3 py-1.5 text-sm"
-              >
-                <span className="text-lg">{c.emoji}</span>
-                <span className="font-medium text-gray-800 flex-1">{c.name}</span>
-                <span className="text-gray-500 text-xs">
-                  {c.label} &middot; {formatCelebrationDate(c.dateObj)}
-                </span>
+        </button>
+
+        {showBirthdays && (
+          <>
+            <p className="text-xs text-gray-400 mb-2">Coming up in the next 4 weeks</p>
+
+            {loadingCelebrations ? (
+              <div className="flex justify-center py-4">
+                <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
               </div>
-            ))}
-          </div>
+            ) : celebrations.length === 0 ? (
+              <p className="text-sm text-gray-500 py-2">No upcoming birthdays or anniversaries</p>
+            ) : (
+              <div className="space-y-2">
+                {celebrations.map((c) => (
+                  <div
+                    key={c.id}
+                    className="flex items-center gap-3 py-1.5 text-sm"
+                  >
+                    <span className="text-lg">{c.emoji}</span>
+                    <span className="font-medium text-gray-800 flex-1">{c.name}</span>
+                    <span className="text-gray-500 text-xs">
+                      {c.label} &middot; {formatCelebrationDate(c.dateObj)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -868,10 +890,22 @@ export function MeetingOpsCard() {
 
       {/* Section 3: Pre-Meeting Survey Question */}
       <div>
-        <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
-          Pre-Meeting Survey Question
-        </h3>
+        <button
+          onClick={() => setShowPreSurvey(!showPreSurvey)}
+          className="w-full flex items-center justify-between mb-3"
+        >
+          <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+            Pre-Meeting Survey Question
+          </h3>
+          <ChevronDown
+            className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${
+              showPreSurvey ? 'rotate-180' : ''
+            }`}
+          />
+        </button>
 
+        {showPreSurvey && (
+        <>
         {loadingSurvey ? (
           <div className="flex justify-center py-4">
             <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
@@ -993,6 +1027,8 @@ export function MeetingOpsCard() {
             {submitting ? 'Creating...' : activeSurvey ? 'Replace Survey' : 'Create Survey'}
           </button>
         </form>
+        </>
+        )}
       </div>
 
       {/* Divider */}
@@ -1000,9 +1036,21 @@ export function MeetingOpsCard() {
 
       {/* Section 4: Post-Meeting Survey */}
       <div>
-        <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
-          Post-Meeting Survey
-        </h3>
+        <button
+          onClick={() => setShowPostSurvey(!showPostSurvey)}
+          className="w-full flex items-center justify-between mb-3"
+        >
+          <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+            Post-Meeting Survey
+          </h3>
+          <ChevronDown
+            className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${
+              showPostSurvey ? 'rotate-180' : ''
+            }`}
+          />
+        </button>
+        {showPostSurvey && (
+        <>
         <p className="text-xs text-gray-400 mb-3">
           Rates: Meal, Administrative Delivery, Speaker (1-5 stars each)
         </p>
@@ -1025,6 +1073,8 @@ export function MeetingOpsCard() {
               Deactivate
             </button>
           </div>
+        )}
+        </>
         )}
       </div>
     </div>

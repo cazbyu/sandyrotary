@@ -115,7 +115,7 @@ export function Scorecard() {
       .schema('p0012_rotary')
       .from('members')
       .select('id', { count: 'exact', head: true })
-      .or('is_active.eq.true,member_status.eq.active');
+      .eq('member_status', 'Active');
 
     if (!countError) {
       setActiveMemberCount(count || 0);
@@ -222,7 +222,7 @@ export function Scorecard() {
       .schema('p0012_rotary')
       .from('members')
       .select('id', { count: 'exact', head: true })
-      .or('is_active.eq.true,member_status.eq.active');
+      .eq('member_status', 'Active');
 
     if (duesData?.value && activeCount) {
       const duesPerMember = parseFloat(duesData.value) || 0;
