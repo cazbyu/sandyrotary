@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, DollarSign } from 'lucide-react';
 import { Layout } from '../../../components/Layout';
+import { BottomNav } from '../../../components/BottomNav';
 
 export function Fundraiser() {
   const navigate = useNavigate();
@@ -28,6 +29,7 @@ export function Fundraiser() {
           </div>
         </div>
       </div>
+      <BottomNav />
     </Layout>
   );
 }

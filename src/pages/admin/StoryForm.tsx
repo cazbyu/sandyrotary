@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Upload, X } from 'lucide-react';
 import { Layout } from '../../components/Layout';
+import { BottomNav } from '../../components/BottomNav';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { generateSlug } from '../../lib/slugUtils';
@@ -240,6 +241,7 @@ export function StoryForm() {
           </div>
         </div>
       </div>
+      <BottomNav />
     </Layout>
   );
 }

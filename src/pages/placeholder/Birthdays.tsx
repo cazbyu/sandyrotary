@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, User } from 'lucide-react';
 import { Layout } from '../../components/Layout';
+import { BottomNav } from '../../components/BottomNav';
 import { supabase } from '../../lib/supabase';
 
 interface Celebration {
@@ -243,6 +244,7 @@ export function Birthdays() {
           )}
         </div>
       </div>
+      <BottomNav />
     </Layout>
   );
 }

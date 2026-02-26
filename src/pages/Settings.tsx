@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, User, Key, LogOut, Info, Shield, Bell } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import { BottomNav } from '../components/BottomNav';
 
 interface ClubSetting {
   setting_key: string;
@@ -602,6 +603,7 @@ export function Settings() {
           </div>
         )}
       </main>
+      <BottomNav />
     </div>
   );
 }

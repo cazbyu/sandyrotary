@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Share2 } from 'lucide-react';
 import { Layout } from '../components/Layout';
+import { BottomNav } from '../components/BottomNav';
 import { supabase } from '../lib/supabase';
 import { formatDate, shareContent } from '../lib/slugUtils';
 
@@ -84,7 +85,8 @@ export function BulletinDetail() {
             </div>
           </div>
         </div>
-      </Layout>
+        <BottomNav />
+    </Layout>
     );
   }
 
@@ -105,7 +107,8 @@ export function BulletinDetail() {
             <p className="text-gray-600">Bulletin not found</p>
           </div>
         </div>
-      </Layout>
+        <BottomNav />
+    </Layout>
     );
   }
 
@@ -164,6 +167,7 @@ export function BulletinDetail() {
           </div>
         </div>
       </div>
+      <BottomNav />
     </Layout>
   );
 }

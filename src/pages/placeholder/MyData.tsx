@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, User, Phone, Mail, MapPin, Share2, Camera, X } from 'lucide-react';
 import { Layout } from '../../components/Layout';
+import { BottomNav } from '../../components/BottomNav';
 import { AccordionSection } from '../../components/AccordionSection';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -334,7 +335,8 @@ export function MyData() {
             <p className="mt-4 text-gray-600">Loading your data...</p>
           </div>
         </div>
-      </Layout>
+        <BottomNav />
+    </Layout>
     );
   }
 
@@ -780,6 +782,7 @@ export function MyData() {
           <div className="h-20"></div>
         </div>
       </div>
+      <BottomNav />
     </Layout>
   );
 }

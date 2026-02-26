@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, User, Phone, Mail } from 'lucide-react';
 import { Layout } from '../../components/Layout';
+import { BottomNav } from '../../components/BottomNav';
 import { supabase } from '../../lib/supabase';
 
 interface Leader {
@@ -187,7 +188,8 @@ export function Leadership() {
             </div>
           </div>
         </div>
-      </Layout>
+        <BottomNav />
+    </Layout>
     );
   }
 
@@ -255,6 +257,7 @@ export function Leadership() {
           </div>
         </div>
       </div>
+      <BottomNav />
     </Layout>
   );
 }

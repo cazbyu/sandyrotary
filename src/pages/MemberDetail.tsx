@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Phone, MessageCircle, User, Mail, MapPin, Share2, UsersRound } from 'lucide-react';
 import { Layout } from '../components/Layout';
+import { BottomNav } from '../components/BottomNav';
 import { AccordionSection } from '../components/AccordionSection';
 import { supabase } from '../lib/supabase';
 
@@ -109,7 +110,8 @@ export function MemberDetail() {
             <p className="mt-4 text-gray-600">Loading member...</p>
           </div>
         </div>
-      </Layout>
+        <BottomNav />
+    </Layout>
     );
   }
 
@@ -130,7 +132,8 @@ export function MemberDetail() {
             <p className="text-gray-600">Member not found</p>
           </div>
         </div>
-      </Layout>
+        <BottomNav />
+    </Layout>
     );
   }
 
@@ -341,6 +344,7 @@ export function MemberDetail() {
           <div className="h-20"></div>
         </div>
       </div>
+      <BottomNav />
     </Layout>
   );
 }

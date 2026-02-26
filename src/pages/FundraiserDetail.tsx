@@ -20,6 +20,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { Layout } from '../components/Layout';
+import { BottomNav } from '../components/BottomNav';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase, FundraiserCampaign, Member } from '../lib/supabase';
 
@@ -314,7 +315,8 @@ export function FundraiserDetail() {
             </div>
           </div>
         </div>
-      </Layout>
+        <BottomNav />
+    </Layout>
     );
   }
 
@@ -336,7 +338,8 @@ export function FundraiserDetail() {
             <p className="text-gray-600">Fundraiser not found</p>
           </div>
         </div>
-      </Layout>
+        <BottomNav />
+    </Layout>
     );
   }
 
@@ -681,6 +684,7 @@ export function FundraiserDetail() {
           </div>
         </div>
       </div>
+      <BottomNav />
     </Layout>
   );
 }

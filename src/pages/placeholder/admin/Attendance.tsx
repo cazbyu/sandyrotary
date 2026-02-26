@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Layout } from '../../../components/Layout';
+import { BottomNav } from '../../../components/BottomNav';
 import { supabase, Member } from '../../../lib/supabase';
 import { useAuth } from '../../../contexts/AuthContext';
 
@@ -585,6 +586,7 @@ export function Attendance() {
           </div>
         )}
       </div>
+      <BottomNav />
     </Layout>
   );
 }

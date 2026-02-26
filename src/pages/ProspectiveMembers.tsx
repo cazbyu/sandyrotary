@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, User } from 'lucide-react';
 import { Layout } from '../components/Layout';
+import { BottomNav } from '../components/BottomNav';
 import { supabase } from '../lib/supabase';
 
 interface Lead {
@@ -96,7 +97,8 @@ export function ProspectiveMembers() {
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#1B2A4A]"></div>
           </div>
         </div>
-      </Layout>
+        <BottomNav />
+    </Layout>
     );
   }
 
@@ -155,6 +157,7 @@ export function ProspectiveMembers() {
           )}
         </div>
       </div>
+      <BottomNav />
     </Layout>
   );
 }

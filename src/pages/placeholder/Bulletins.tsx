@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Share2, Plus } from 'lucide-react';
 import { Layout } from '../../components/Layout';
+import { BottomNav } from '../../components/BottomNav';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatDate, truncateText, shareContent } from '../../lib/slugUtils';
@@ -103,7 +104,8 @@ export function Bulletins() {
             </div>
           </div>
         </div>
-      </Layout>
+        <BottomNav />
+    </Layout>
     );
   }
 
@@ -181,6 +183,7 @@ export function Bulletins() {
           </button>
         )}
       </div>
+      <BottomNav />
     </Layout>
   );
 }

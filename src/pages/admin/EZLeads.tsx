@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, List, LayoutGrid, Phone, Mail, User, BookUser } from 'lucide-react';
 import { Layout } from '../../components/Layout';
+import { BottomNav } from '../../components/BottomNav';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { ContactListView } from './ContactListView';
@@ -146,7 +147,8 @@ export function EZLeads() {
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#1B2A4A]"></div>
           </div>
         </div>
-      </Layout>
+        <BottomNav />
+    </Layout>
     );
   }
 
@@ -321,6 +323,7 @@ export function EZLeads() {
           </div>
         )}
       </div>
+      <BottomNav />
     </Layout>
   );
 }

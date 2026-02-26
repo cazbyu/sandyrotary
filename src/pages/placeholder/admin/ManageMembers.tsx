@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Edit2, User } from 'lucide-react';
 import { Layout } from '../../../components/Layout';
+import { BottomNav } from '../../../components/BottomNav';
 import { supabase } from '../../../lib/supabase';
 
 interface Member {
@@ -63,7 +64,8 @@ export function ManageMembers() {
             </div>
           </div>
         </div>
-      </Layout>
+        <BottomNav />
+    </Layout>
     );
   }
 
@@ -136,6 +138,7 @@ export function ManageMembers() {
           />
         )}
       </div>
+      <BottomNav />
     </Layout>
   );
 }

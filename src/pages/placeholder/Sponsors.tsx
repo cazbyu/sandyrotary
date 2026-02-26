@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ExternalLink, Building2 } from 'lucide-react';
 import { Layout } from '../../components/Layout';
+import { BottomNav } from '../../components/BottomNav';
 import { supabase } from '../../lib/supabase';
 import { truncateText } from '../../lib/slugUtils';
 
@@ -67,7 +68,8 @@ export function Sponsors() {
             </div>
           </div>
         </div>
-      </Layout>
+        <BottomNav />
+    </Layout>
     );
   }
 
@@ -131,6 +133,7 @@ export function Sponsors() {
           )}
         </div>
       </div>
+      <BottomNav />
     </Layout>
   );
 }

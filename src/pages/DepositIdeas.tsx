@@ -10,6 +10,7 @@ import {
   Send,
 } from 'lucide-react';
 import { Layout } from '../components/Layout';
+import { BottomNav } from '../components/BottomNav';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 
@@ -369,6 +370,7 @@ export function DepositIdeas() {
           )}
         </div>
       </div>
+      <BottomNav />
     </Layout>
   );
 }

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Info, Clipboard, MapPin, Copy } from 'lucide-react';
 import { Layout } from '../../components/Layout';
+import { BottomNav } from '../../components/BottomNav';
 import { supabase } from '../../lib/supabase';
 
 interface ClubSettings {
@@ -100,7 +101,8 @@ export function ClubInfo() {
             </div>
           </div>
         </div>
-      </Layout>
+        <BottomNav />
+    </Layout>
     );
   }
 
@@ -208,6 +210,7 @@ export function ClubInfo() {
           )}
         </div>
       </div>
+      <BottomNav />
     </Layout>
   );
 }

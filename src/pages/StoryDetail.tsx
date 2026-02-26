@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Share2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Layout } from '../components/Layout';
+import { BottomNav } from '../components/BottomNav';
 import { supabase } from '../lib/supabase';
 import { formatDate, shareContent } from '../lib/slugUtils';
 
@@ -95,7 +96,8 @@ export function StoryDetail() {
             </div>
           </div>
         </div>
-      </Layout>
+        <BottomNav />
+    </Layout>
     );
   }
 
@@ -116,7 +118,8 @@ export function StoryDetail() {
             <p className="text-gray-600">Story not found</p>
           </div>
         </div>
-      </Layout>
+        <BottomNav />
+    </Layout>
     );
   }
 
@@ -203,6 +206,7 @@ export function StoryDetail() {
           </div>
         </div>
       </div>
+      <BottomNav />
     </Layout>
   );
 }
