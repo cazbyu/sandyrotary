@@ -24,26 +24,13 @@ interface Bulletin {
 
 export function Bulletins() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { isLeader } = useAuth();
   const [loading, setLoading] = useState(true);
   const [bulletins, setBulletins] = useState<Bulletin[]>([]);
-  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     loadBulletins();
-    checkAdmin();
   }, []);
-
-  const checkAdmin = async () => {
-    if (!user) return;
-    const { data } = await supabase
-      .schema('p0012_rotary')
-      .from('members')
-      .select('is_admin')
-      .eq('id', user.id)
-      .maybeSingle();
-    setIsAdmin(data?.is_admin || false);
-  };
 
   const loadBulletins = async () => {
     try {
@@ -62,7 +49,7 @@ export function Bulletins() {
         )
         .order('created_at', { ascending: false });
 
-      if (!isAdmin) {
+      if (!isLeader) {
         query = query.eq('is_published', true);
       }
 
@@ -174,7 +161,7 @@ export function Bulletins() {
           )}
         </div>
 
-        {isAdmin && (
+        {isLeader && (
           <button
             onClick={() => navigate('/admin/bulletins/new')}
             className="fixed bottom-24 right-6 w-14 h-14 bg-[#1B2A4A] rounded-full shadow-lg flex items-center justify-center hover:bg-[#1B2A4A]/90 transition-colors z-50"

@@ -7,6 +7,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatDate, truncateText, shareContent } from '../../lib/slugUtils';
 
+
 interface Story {
   id: string;
   title: string;
@@ -24,26 +25,13 @@ interface Story {
 
 export function Stories() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { isLeader } = useAuth();
   const [loading, setLoading] = useState(true);
   const [stories, setStories] = useState<Story[]>([]);
-  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     loadStories();
-    checkAdmin();
   }, []);
-
-  const checkAdmin = async () => {
-    if (!user) return;
-    const { data } = await supabase
-      .schema('p0012_rotary')
-      .from('members')
-      .select('is_admin')
-      .eq('id', user.id)
-      .maybeSingle();
-    setIsAdmin(data?.is_admin || false);
-  };
 
   const loadStories = async () => {
     try {
@@ -62,7 +50,7 @@ export function Stories() {
         )
         .order('created_at', { ascending: false });
 
-      if (!isAdmin) {
+      if (!isLeader) {
         query = query.eq('is_published', true);
       }
 
@@ -174,7 +162,7 @@ export function Stories() {
           )}
         </div>
 
-        {isAdmin && (
+        {isLeader && (
           <button
             onClick={() => navigate('/admin/stories/new')}
             className="fixed bottom-24 right-6 w-14 h-14 bg-[#1B2A4A] rounded-full shadow-lg flex items-center justify-center hover:bg-[#1B2A4A]/90 transition-colors z-50"

@@ -16,34 +16,20 @@ interface Selfie {
   uploader: {
     first_name: string;
     last_name: string;
-    is_admin: boolean;
   };
 }
 
 export function Selfies() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, isLeader } = useAuth();
   const [loading, setLoading] = useState(true);
   const [selfies, setSelfies] = useState<Selfie[]>([]);
   const [selectedSelfie, setSelectedSelfie] = useState<Selfie | null>(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     loadSelfies();
-    checkAdmin();
   }, []);
-
-  const checkAdmin = async () => {
-    if (!user) return;
-    const { data } = await supabase
-      .schema('p0012_rotary')
-      .from('members')
-      .select('is_admin')
-      .eq('id', user.id)
-      .maybeSingle();
-    setIsAdmin(data?.is_admin || false);
-  };
 
   const loadSelfies = async () => {
     try {
@@ -55,8 +41,7 @@ export function Selfies() {
           *,
           uploader:uploaded_by (
             first_name,
-            last_name,
-            is_admin
+            last_name
           )
         `
         )
@@ -93,7 +78,7 @@ export function Selfies() {
   };
 
   const canDelete = (selfie: Selfie) => {
-    return selfie.uploaded_by === user?.id || isAdmin;
+    return selfie.uploaded_by === user?.id || isLeader;
   };
 
   if (loading) {
