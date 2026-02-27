@@ -25,6 +25,7 @@ export function SelfieGallery() {
         .schema('p0012_rotary')
         .from('service_selfies')
         .select('id, image_url, caption, created_at')
+        .or('status.eq.approved,status.is.null')
         .order('created_at', { ascending: false })
         .limit(10);
 

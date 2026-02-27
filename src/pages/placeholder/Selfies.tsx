@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, X, Trash2 } from 'lucide-react';
+import { ArrowLeft, Plus, X, Trash2, Clock, CheckCircle2 } from 'lucide-react';
 import { Layout } from '../../components/Layout';
 import { BottomNav } from '../../components/BottomNav';
 import { supabase } from '../../lib/supabase';
@@ -13,6 +13,7 @@ interface Selfie {
   caption: string;
   uploaded_by: string;
   created_at: string;
+  status?: string;
   uploader: {
     first_name: string;
     last_name: string;
@@ -33,7 +34,7 @@ export function Selfies() {
 
   const loadSelfies = async () => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .schema('p0012_rotary')
         .from('service_selfies')
         .select(
@@ -46,6 +47,13 @@ export function Selfies() {
         `
         )
         .order('created_at', { ascending: false });
+
+      // Leaders see everything; regular users see approved + their own pending
+      if (!isLeader) {
+        query = query.or(`status.eq.approved,status.is.null,uploaded_by.eq.${user?.id}`);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
 
@@ -130,7 +138,7 @@ export function Selfies() {
                 <div
                   key={selfie.id}
                   onClick={() => setSelectedSelfie(selfie)}
-                  className="aspect-square bg-gray-200 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
+                  className="relative aspect-square bg-gray-200 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
                 >
                   <img
                     src={selfie.image_url}
@@ -138,6 +146,17 @@ export function Selfies() {
                     loading="lazy"
                     className="w-full h-full object-cover"
                   />
+                  {selfie.status === 'pending' && (
+                    <div className="absolute top-1.5 left-1.5 flex items-center gap-1 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                      <Clock className="w-3 h-3" />
+                      Pending
+                    </div>
+                  )}
+                  {selfie.status === 'rejected' && (
+                    <div className="absolute top-1.5 left-1.5 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                      Rejected
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -175,6 +194,18 @@ export function Selfies() {
               </div>
 
               <div className="p-6">
+                {selectedSelfie.status === 'pending' && (
+                  <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
+                    <Clock className="w-4 h-4 text-amber-600" />
+                    <span className="text-sm text-amber-700 font-medium">Awaiting approval from Public Image Chair</span>
+                  </div>
+                )}
+                {selectedSelfie.status === 'approved' && (
+                  <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2 mb-4">
+                    <CheckCircle2 className="w-4 h-4 text-green-600" />
+                    <span className="text-sm text-green-700 font-medium">Approved</span>
+                  </div>
+                )}
                 {selectedSelfie.caption && (
                   <p className="text-gray-800 text-lg mb-4">{selectedSelfie.caption}</p>
                 )}
@@ -259,10 +290,12 @@ function UploadModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
         image_url: publicUrl,
         caption: caption,
         uploaded_by: user.id,
+        status: 'pending',
       });
 
       if (insertError) throw insertError;
 
+      alert('Photo uploaded! It will appear once approved by the Public Image Chair.');
       onSuccess();
     } catch (error) {
       console.error('Error uploading selfie:', error);

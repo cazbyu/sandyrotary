@@ -18,6 +18,7 @@ import { MeetingOpsCard } from '../components/admin/MeetingOpsCard';
 import { InsightDashboardCard } from '../components/admin/InsightDashboardCard';
 import { GrowthPipelineCard } from '../components/admin/GrowthPipelineCard';
 import { CampaignHubCard } from '../components/admin/CampaignHubCard';
+import { SelfieApprovalCard } from '../components/admin/SelfieApprovalCard';
 
 export function Home() {
   const { isAdmin, isLeader } = useAuth();
@@ -98,6 +99,7 @@ export function Home() {
         {activeTab === 'admin' && isLeader && (
           <div className="p-4 space-y-4">
             <MeetingOpsCard />
+            <SelfieApprovalCard />
             <InsightDashboardCard />
             <GrowthPipelineCard />
             <CampaignHubCard />
