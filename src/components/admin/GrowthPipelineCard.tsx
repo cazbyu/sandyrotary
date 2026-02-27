@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { UsersRound, ChevronRight, Loader2 } from 'lucide-react';
+import { UsersRound, ChevronRight, ChevronDown, Loader2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 interface Lead {
@@ -34,6 +34,7 @@ function getDaysSince(dateStr: string): number {
 
 export function GrowthPipelineCard() {
   const navigate = useNavigate();
+  const [isOpen, setIsOpen] = useState(false);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -92,13 +93,22 @@ export function GrowthPipelineCard() {
   return (
     <div className="bg-white rounded-xl shadow-md p-5">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-5">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center gap-3"
+      >
         <div className="w-10 h-10 rounded-full bg-[#1B2A4A] flex items-center justify-center">
           <UsersRound className="w-5 h-5 text-white" />
         </div>
-        <h2 className="text-lg font-bold text-[#1B2A4A]">Growth Pipeline</h2>
-      </div>
+        <h2 className="text-lg font-bold text-[#1B2A4A] flex-1 text-left">Growth Pipeline</h2>
+        <ChevronDown
+          className={`w-5 h-5 text-gray-500 transition-transform duration-200 ${
+            isOpen ? 'rotate-180' : ''
+          }`}
+        />
+      </button>
 
+      {isOpen && (<div className="mt-5">
       {loading ? (
         <div className="flex justify-center py-8">
           <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
@@ -177,6 +187,7 @@ export function GrowthPipelineCard() {
           </button>
         </>
       )}
+      </div>)}
     </div>
   );
 }

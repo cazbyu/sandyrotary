@@ -185,7 +185,7 @@ export function MemberDetail() {
             )}
           </div>
 
-          {member.share_contact_info && hasPhone && (
+          {(member.share_contact_info !== false) && hasPhone && (
             <div className="bg-white rounded-2xl p-4 mb-4">
               <div className="flex gap-3 justify-center">
                 <button
@@ -206,7 +206,7 @@ export function MemberDetail() {
             </div>
           )}
 
-          {!member.share_contact_info && (
+          {member.share_contact_info === false && (
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4 text-center">
               <p className="text-amber-800">
                 This member has chosen not to share contact information.
@@ -214,7 +214,7 @@ export function MemberDetail() {
             </div>
           )}
 
-          {member.share_contact_info && (
+          {(member.share_contact_info !== false) && (
             <>
               {(member.preferred_phone || member.mobile_phone || member.home_phone || member.office_phone) && (
                 <AccordionSection title="Phone Numbers" icon={Phone}>

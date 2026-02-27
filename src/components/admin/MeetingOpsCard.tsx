@@ -114,6 +114,9 @@ export function MeetingOpsCard() {
   const [activePostSurvey, setActivePostSurvey] = useState<PostEventSurvey | null>(null);
   const [creatingPostSurvey, setCreatingPostSurvey] = useState(false);
 
+  // Card-level collapse
+  const [isOpen, setIsOpen] = useState(false);
+
   // Collapsible section states
   const [showBirthdays, setShowBirthdays] = useState(true);
   const [showPreSurvey, setShowPreSurvey] = useState(true);
@@ -616,13 +619,22 @@ export function MeetingOpsCard() {
   return (
     <div className="bg-white rounded-xl shadow-md p-5">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-5">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center gap-3"
+      >
         <div className="w-10 h-10 rounded-full bg-[#1B2A4A] flex items-center justify-center">
           <ClipboardCheck className="w-5 h-5 text-white" />
         </div>
-        <h2 className="text-lg font-bold text-[#1B2A4A]">Meeting Ops</h2>
-      </div>
+        <h2 className="text-lg font-bold text-[#1B2A4A] flex-1 text-left">Meeting Ops</h2>
+        <ChevronDown
+          className={`w-5 h-5 text-gray-500 transition-transform duration-200 ${
+            isOpen ? 'rotate-180' : ''
+          }`}
+        />
+      </button>
 
+      {isOpen && (<div className="mt-5">
       {/* Section 1: Take Attendance */}
       <div className="mb-3">
         <button
@@ -1077,6 +1089,7 @@ export function MeetingOpsCard() {
         </>
         )}
       </div>
+      </div>)}
     </div>
   );
 }

@@ -167,7 +167,7 @@ export function LeadershipActions() {
         .from('leadership_actions')
         .select(`
           *,
-          responsible_member:responsible_member_id("members"(first_name, last_name))
+          responsible_member:responsible_member_id(first_name, last_name)
         `)
         .order('due_date', { ascending: true, nullsFirst: false })
         .order('created_at', { ascending: false });
@@ -175,12 +175,7 @@ export function LeadershipActions() {
       const { data, error } = await query;
       if (error) throw error;
 
-      const mapped = (data || []).map((a: any) => ({
-        ...a,
-        responsible_member: a.responsible_member?.['members'] ?? null,
-      }));
-
-      setActions(mapped);
+      setActions(data || []);
     } catch (error) {
       console.error('Error loading actions:', error);
       try {
@@ -961,16 +956,6 @@ export function LeadershipActions() {
             <ArrowLeft className="w-6 h-6 text-white" />
           </button>
           <h1 className="text-xl font-bold text-white flex-1">Leadership Actions</h1>
-          <button
-            onClick={() => setShowForm(!showForm)}
-            className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors"
-          >
-            {showForm ? (
-              <X className="w-5 h-5 text-white" />
-            ) : (
-              <Plus className="w-5 h-5 text-white" />
-            )}
-          </button>
         </div>
 
         <div className="p-4">
@@ -1214,6 +1199,24 @@ export function LeadershipActions() {
 
           {filter === 'ideas' ? renderIdeaJarTab() : renderActionsTab()}
         </div>
+
+        {/* Floating Action Button */}
+        {filter !== 'ideas' && (
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className={`fixed bottom-24 right-6 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors z-50 ${
+              showForm
+                ? 'bg-gray-600 hover:bg-gray-700'
+                : 'bg-[#D94F4F] hover:bg-[#B83E3E]'
+            }`}
+          >
+            {showForm ? (
+              <X className="w-6 h-6 text-white" />
+            ) : (
+              <Plus className="w-6 h-6 text-white" />
+            )}
+          </button>
+        )}
       </div>
       <BottomNav />
     </Layout>

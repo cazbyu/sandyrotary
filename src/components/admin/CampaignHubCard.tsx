@@ -40,6 +40,7 @@ function formatCurrency(amount: number): string {
 export function CampaignHubCard() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [isOpen, setIsOpen] = useState(false);
   const [campaigns, setCampaigns] = useState<FundraiserCampaign[]>([]);
   const [sponsors, setSponsors] = useState<Sponsor[]>([]);
   const [loadingCampaigns, setLoadingCampaigns] = useState(true);
@@ -190,22 +191,33 @@ export function CampaignHubCard() {
   return (
     <div className="bg-white rounded-xl shadow-md p-5">
       {/* Header */}
-      <div className="flex items-center justify-between mb-5">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between">
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className="flex items-center gap-3 flex-1"
+        >
           <div className="w-10 h-10 rounded-full bg-[#1B2A4A] flex items-center justify-center">
             <DollarSign className="w-5 h-5 text-white" />
           </div>
-          <h2 className="text-lg font-bold text-[#1B2A4A]">Fundraising Hub</h2>
-        </div>
-        <button
-          onClick={handleOpenForm}
-          className="w-8 h-8 rounded-full bg-[#D94F4F] text-white flex items-center justify-center hover:bg-[#B83E3E] transition-colors shadow-sm"
-          title="Add Fundraiser"
-        >
-          <Plus className="w-4 h-4" />
+          <h2 className="text-lg font-bold text-[#1B2A4A] flex-1 text-left">Fundraising Hub</h2>
+          <ChevronDown
+            className={`w-5 h-5 text-gray-500 transition-transform duration-200 ${
+              isOpen ? 'rotate-180' : ''
+            }`}
+          />
         </button>
+        {isOpen && (
+          <button
+            onClick={handleOpenForm}
+            className="w-8 h-8 rounded-full bg-[#D94F4F] text-white flex items-center justify-center hover:bg-[#B83E3E] transition-colors shadow-sm ml-2"
+            title="Add Fundraiser"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
+      {isOpen && (<div className="mt-5">
       {/* Add Fundraiser Form */}
       {showForm && (
         <div className="mb-5 border border-gray-200 rounded-lg p-4 bg-gray-50">
@@ -542,6 +554,7 @@ export function CampaignHubCard() {
           </div>
         )}
       </div>
+      </div>)}
     </div>
   );
 }

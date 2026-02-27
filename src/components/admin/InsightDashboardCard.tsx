@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BarChart3, Lightbulb, ListChecks, Loader2, MessageSquare } from 'lucide-react';
+import { BarChart3, ChevronDown, Lightbulb, ListChecks, Loader2, MessageSquare } from 'lucide-react';
 import { supabase, MEETING_RATING_CATEGORIES, SERVICE_RATING_CATEGORIES, FUNDRAISER_RATING_CATEGORIES } from '../../lib/supabase';
 import { PulseChart } from './PulseChart';
 import { SuggestionFeed } from './SuggestionFeed';
@@ -44,6 +44,7 @@ function getEventType(tab: InsightTab): string {
 export function InsightDashboardCard() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<InsightTab>('meetings');
   const [comments, setComments] = useState<EventComment[]>([]);
   const [ratingAvgs, setRatingAvgs] = useState<RatingAvg[]>([]);
@@ -195,13 +196,22 @@ export function InsightDashboardCard() {
 
   return (
     <div className="bg-white rounded-xl shadow-md p-5">
-      <div className="flex items-center gap-3 mb-4">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center gap-3"
+      >
         <div className="w-10 h-10 rounded-full bg-[#1B2A4A] flex items-center justify-center">
           <BarChart3 className="w-5 h-5 text-white" />
         </div>
-        <h2 className="text-lg font-bold text-[#1B2A4A]">Insight Dashboard</h2>
-      </div>
+        <h2 className="text-lg font-bold text-[#1B2A4A] flex-1 text-left">Insight Dashboard</h2>
+        <ChevronDown
+          className={`w-5 h-5 text-gray-500 transition-transform duration-200 ${
+            isOpen ? 'rotate-180' : ''
+          }`}
+        />
+      </button>
 
+      {isOpen && (<div className="mt-4">
       {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 rounded-lg p-1 mb-5">
         {tabs.map((tab) => (
@@ -318,6 +328,7 @@ export function InsightDashboardCard() {
         </h3>
         <SuggestionFeed />
       </div>
+      </div>)}
     </div>
   );
 }

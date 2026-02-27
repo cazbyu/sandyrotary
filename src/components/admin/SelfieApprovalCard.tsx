@@ -32,7 +32,7 @@ export function SelfieApprovalCard() {
   const { member } = useAuth();
   const [pending, setPending] = useState<PendingSelfie[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showSection, setShowSection] = useState(true);
+  const [showSection, setShowSection] = useState(false);
   const [selectedSelfie, setSelectedSelfie] = useState<PendingSelfie | null>(null);
   const [socialCaption, setSocialCaption] = useState('');
   const [activeFormat, setActiveFormat] = useState<SocialFormat>('instagram');
@@ -146,7 +146,7 @@ export function SelfieApprovalCard() {
       {/* Header */}
       <button
         onClick={() => setShowSection(!showSection)}
-        className="w-full flex items-center gap-3 mb-4"
+        className="w-full flex items-center gap-3"
       >
         <div className="w-10 h-10 rounded-full bg-[#D94F4F] flex items-center justify-center">
           <Camera className="w-5 h-5 text-white" />
@@ -167,7 +167,7 @@ export function SelfieApprovalCard() {
       </button>
 
       {showSection && (
-        <>
+        <div className="mt-4">
           {loading ? (
             <div className="flex justify-center py-6">
               <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
@@ -243,7 +243,7 @@ export function SelfieApprovalCard() {
               for scheduling across your club's social media channels.
             </p>
           </div>
-        </>
+        </div>
       )}
 
       {/* Full Review Modal */}
