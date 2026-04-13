@@ -1,8 +1,7 @@
 import { ReactNode } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Flame, Settings, ArrowLeft, LogOut, MessageCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Flame, ArrowLeft, MessageCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase } from '../lib/supabase';
 
 interface LayoutProps {
   children: ReactNode;
@@ -14,7 +13,7 @@ interface LayoutProps {
   onWhatsAppClick?: () => void;
 }
 
-export function Layout({ children, showHeader = true, showBackButton = false, backPath = '/', title, whatsappLink, onWhatsAppClick }: LayoutProps) {
+export function Layout({ children, showHeader = true, showBackButton = false, backPath = '/', title, onWhatsAppClick }: LayoutProps) {
   const { member } = useAuth();
   const navigate = useNavigate();
 
@@ -28,11 +27,6 @@ export function Layout({ children, showHeader = true, showBackButton = false, ba
     } else {
       navigate(-1);
     }
-  };
-
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    navigate('/login');
   };
 
   return (
@@ -67,22 +61,6 @@ export function Layout({ children, showHeader = true, showBackButton = false, ba
                   <MessageCircle className="w-6 h-6 text-green-400" />
                 </button>
               )}
-
-              <button
-                onClick={handleSignOut}
-                className="w-12 h-12 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors"
-                title="Sign Out"
-              >
-                <LogOut className="w-6 h-6 text-white" />
-              </button>
-
-              <Link
-                to="/settings"
-                className="w-12 h-12 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors"
-                title="Settings"
-              >
-                <Settings className="w-6 h-6 text-white" />
-              </Link>
             </div>
           </div>
 

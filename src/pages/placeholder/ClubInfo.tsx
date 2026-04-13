@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Info, Clipboard, MapPin, Copy } from 'lucide-react';
+import { ArrowLeft, Info, Clipboard, MapPin, Copy, Share2 } from 'lucide-react';
 import { Layout } from '../../components/Layout';
 import { BottomNav } from '../../components/BottomNav';
 import { supabase } from '../../lib/supabase';
+import { shareContent } from '../../lib/slugUtils';
 
 interface ClubSettings {
   club_number?: string;
@@ -76,6 +77,23 @@ export function ClubInfo() {
     window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}`, '_blank');
   };
 
+  const handleShareMeetingInfo = async () => {
+    const time = settings.meeting_time || '';
+    const place = settings.meeting_place_name || '';
+    const address = settings.meeting_address_line1 || '';
+    const city = settings.meeting_city || '';
+
+    let text: string;
+    if (time || place) {
+      const parts = [time, place, address, city].filter(Boolean);
+      text = `${parts.join(', ')} — Join us!`;
+    } else {
+      text = 'Come visit the Sandy Rotary Club!';
+    }
+
+    await shareContent('Sandy Rotary Club', text, window.location.origin);
+  };
+
   const handleCopyClubInfo = () => {
     const text = `Club Number: ${settings.club_number || 'N/A'}\nCharter Date: ${settings.charter_date || 'N/A'}`;
     navigator.clipboard.writeText(text);
@@ -120,6 +138,14 @@ export function ClubInfo() {
         </div>
 
         <div className="p-4 space-y-4">
+          <button
+            onClick={handleShareMeetingInfo}
+            className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-[#1B2A4A] text-white font-semibold rounded-xl hover:bg-[#2D3E5F] transition-colors"
+          >
+            <Share2 className="w-5 h-5" />
+            Share Meeting Info
+          </button>
+
           <div className="bg-white rounded-xl shadow-md p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">

@@ -22,6 +22,9 @@ export function AddEvent() {
     addressCity: '',
     addressState: '',
     addressZip: '',
+    speakerName: '',
+    speakerTopic: '',
+    speakerBio: '',
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -47,6 +50,9 @@ export function AddEvent() {
         address_city: formData.addressCity,
         address_state: formData.addressState,
         address_zip: formData.addressZip,
+        speaker_name: formData.speakerName || null,
+        speaker_topic: formData.speakerTopic || null,
+        speaker_bio: formData.speakerBio || null,
         created_by: user?.id,
       });
 
@@ -243,6 +249,43 @@ export function AddEvent() {
                 placeholder="Zip Code"
                 maxLength={10}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B2A4A]"
+              />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-md p-4 space-y-4">
+            <h2 className="font-bold text-gray-800 text-lg">Speaker Information (Optional)</h2>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-800 mb-2">Speaker Name</label>
+              <input
+                type="text"
+                value={formData.speakerName}
+                onChange={(e) => setFormData({ ...formData, speakerName: e.target.value })}
+                placeholder="Speaker's full name"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B2A4A]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-800 mb-2">Speaker Topic</label>
+              <input
+                type="text"
+                value={formData.speakerTopic}
+                onChange={(e) => setFormData({ ...formData, speakerTopic: e.target.value })}
+                placeholder="Topic or presentation title"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B2A4A]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-800 mb-2">Speaker Bio</label>
+              <textarea
+                value={formData.speakerBio}
+                onChange={(e) => setFormData({ ...formData, speakerBio: e.target.value })}
+                placeholder="Brief bio (optional)"
+                rows={3}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B2A4A] resize-none"
               />
             </div>
           </div>

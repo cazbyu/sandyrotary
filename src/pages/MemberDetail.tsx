@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Phone, MessageCircle, User, Mail, MapPin, Share2, UsersRound } from 'lucide-react';
+import { ArrowLeft, Phone, MessageCircle, User, Mail, MapPin, Share2, UsersRound, ExternalLink, Facebook, Linkedin, Instagram, Twitter } from 'lucide-react';
 import { Layout } from '../components/Layout';
 import { BottomNav } from '../components/BottomNav';
 import { AccordionSection } from '../components/AccordionSection';
@@ -34,7 +34,7 @@ interface MemberData {
 
 interface SocialMedia {
   platform: string;
-  handle: string;
+  url: string;
 }
 
 export function MemberDetail() {
@@ -313,15 +313,32 @@ export function MemberDetail() {
             </>
           )}
 
-          {socialMedia.length > 0 && (
+          {(member.share_contact_info !== false) && socialMedia.length > 0 && (
             <AccordionSection title="Social Media" icon={Share2}>
-              <div className="space-y-3">
-                {socialMedia.map((social, index) => (
-                  <div key={index} className="bg-white p-3 rounded-lg">
-                    <div className="font-medium text-gray-800">{social.platform}</div>
-                    <div className="text-sm text-gray-600">@{social.handle}</div>
-                  </div>
-                ))}
+              <div className="flex flex-wrap gap-3">
+                {socialMedia.map((social, index) => {
+                  const platform = social.platform.toLowerCase();
+                  let Icon = ExternalLink;
+                  let color = '#6B7280';
+                  if (platform.includes('facebook')) { Icon = Facebook; color = '#1877F2'; }
+                  else if (platform.includes('linkedin')) { Icon = Linkedin; color = '#0A66C2'; }
+                  else if (platform.includes('instagram')) { Icon = Instagram; color = '#E1306C'; }
+                  else if (platform.includes('twitter') || platform.includes('x')) { Icon = Twitter; color = '#000000'; }
+
+                  return (
+                    <a
+                      key={index}
+                      href={social.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-white font-medium text-sm hover:opacity-90 transition-opacity"
+                      style={{ backgroundColor: color }}
+                    >
+                      <Icon className="w-4 h-4" />
+                      {social.platform}
+                    </a>
+                  );
+                })}
               </div>
             </AccordionSection>
           )}

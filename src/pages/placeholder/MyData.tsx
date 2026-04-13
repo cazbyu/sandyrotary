@@ -10,7 +10,7 @@ import { supabase } from '../../lib/supabase';
 interface SocialMedia {
   id?: string;
   platform: string;
-  handle: string;
+  url: string;
   isNew?: boolean;
 }
 
@@ -99,7 +99,7 @@ export function MyData() {
 
   const [socialMedia, setSocialMedia] = useState<SocialMedia[]>([]);
   const [showAddSocial, setShowAddSocial] = useState(false);
-  const [newSocial, setNewSocial] = useState({ platform: '', handle: '' });
+  const [newSocial, setNewSocial] = useState({ platform: '', url: '' });
 
   useEffect(() => {
     if (member) {
@@ -235,9 +235,9 @@ export function MyData() {
   };
 
   const handleAddSocialMedia = () => {
-    if (newSocial.platform && newSocial.handle) {
+    if (newSocial.platform && newSocial.url) {
       setSocialMedia(prev => [...prev, { ...newSocial, isNew: true }]);
-      setNewSocial({ platform: '', handle: '' });
+      setNewSocial({ platform: '', url: '' });
       setShowAddSocial(false);
     }
   };
@@ -309,7 +309,7 @@ export function MyData() {
             newSocialMedia.map(s => ({
               member_id: member!.id,
               platform: s.platform,
-              handle: s.handle,
+              url: s.url,
             }))
           );
 
@@ -699,13 +699,13 @@ export function MyData() {
             <div className="space-y-3">
               {socialMedia.map((social, index) => (
                 <div key={index} className="flex items-center gap-3 bg-white p-3 rounded-lg">
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <div className="font-medium text-gray-800">{social.platform}</div>
-                    <div className="text-sm text-gray-600">@{social.handle}</div>
+                    <div className="text-sm text-gray-600 truncate">{social.url}</div>
                   </div>
                   <button
                     onClick={() => handleRemoveSocialMedia(index)}
-                    className="w-8 h-8 flex items-center justify-center rounded-full bg-red-100 text-red-600 hover:bg-red-200"
+                    className="w-8 h-8 flex items-center justify-center rounded-full bg-red-100 text-red-600 hover:bg-red-200 shrink-0"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -716,21 +716,25 @@ export function MyData() {
                 <div className="bg-white p-4 rounded-lg space-y-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-600 mb-1">Platform</label>
-                    <input
-                      type="text"
+                    <select
                       value={newSocial.platform}
                       onChange={(e) => setNewSocial(prev => ({ ...prev, platform: e.target.value }))}
-                      placeholder="e.g., Twitter, LinkedIn"
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#D94F4F] focus:border-transparent"
-                    />
+                    >
+                      <option value="">Select platform</option>
+                      <option value="Facebook">Facebook</option>
+                      <option value="LinkedIn">LinkedIn</option>
+                      <option value="Instagram">Instagram</option>
+                      <option value="X/Twitter">X/Twitter</option>
+                    </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">Handle</label>
+                    <label className="block text-sm font-medium text-gray-600 mb-1">URL</label>
                     <input
-                      type="text"
-                      value={newSocial.handle}
-                      onChange={(e) => setNewSocial(prev => ({ ...prev, handle: e.target.value }))}
-                      placeholder="username"
+                      type="url"
+                      value={newSocial.url}
+                      onChange={(e) => setNewSocial(prev => ({ ...prev, url: e.target.value }))}
+                      placeholder="https://..."
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#D94F4F] focus:border-transparent"
                     />
                   </div>
@@ -744,7 +748,7 @@ export function MyData() {
                     <button
                       onClick={() => {
                         setShowAddSocial(false);
-                        setNewSocial({ platform: '', handle: '' });
+                        setNewSocial({ platform: '', url: '' });
                       }}
                       className="flex-1 py-2 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300"
                     >

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, MapPin, ChevronDown, ChevronUp, Clock } from 'lucide-react';
+import { ArrowLeft, MapPin, ChevronDown, ChevronUp, Clock, Mic } from 'lucide-react';
 import { Layout } from '../../components/Layout';
 import { BottomNav } from '../../components/BottomNav';
 import { supabase } from '../../lib/supabase';
@@ -20,6 +20,9 @@ interface CalendarEvent {
   address_zip?: string;
   enable_rsvp: boolean;
   status: string;
+  speaker_name?: string;
+  speaker_topic?: string;
+  speaker_bio?: string;
 }
 
 interface AttendanceRecord {
@@ -284,6 +287,22 @@ export function CalendarPage() {
                               <div>
                                 <h4 className="font-semibold text-gray-800 mb-1">Description</h4>
                                 <p className="text-gray-700 whitespace-pre-wrap">{event.description}</p>
+                              </div>
+                            )}
+
+                            {event.speaker_name && (
+                              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Mic className="w-4 h-4 text-purple-600" />
+                                  <h4 className="font-semibold text-gray-800">Speaker</h4>
+                                </div>
+                                <p className="font-bold text-gray-800">{event.speaker_name}</p>
+                                {event.speaker_topic && (
+                                  <p className="text-gray-700 italic mt-1">{event.speaker_topic}</p>
+                                )}
+                                {event.speaker_bio && (
+                                  <p className="text-gray-600 text-sm mt-2">{event.speaker_bio}</p>
+                                )}
                               </div>
                             )}
 
