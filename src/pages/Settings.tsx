@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, User, Key, LogOut, Info, Shield, Bell } from 'lucide-react';
+import { ArrowLeft, User, Key, LogOut, Info, Shield, Bell, Link as LinkIcon, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { BottomNav } from '../components/BottomNav';
+import { getGHLStatus, initGHLAuth, GHLStatus } from '../lib/ghl';
 
 interface ClubSetting {
   setting_key: string;
@@ -35,10 +36,44 @@ export function Settings() {
   const [clubSettings, setClubSettings] = useState<Record<string, string>>({});
   const [savingAdmin, setSavingAdmin] = useState(false);
 
+  // GHL integration state
+  const [ghlStatus, setGhlStatus] = useState<GHLStatus | null>(null);
+  const [ghlLoading, setGhlLoading] = useState(false);
+  const [ghlConnecting, setGhlConnecting] = useState(false);
+  const [ghlError, setGhlError] = useState<string | null>(null);
+  const [ghlBanner, setGhlBanner] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
   useEffect(() => {
     if (isAdmin) {
       fetchClubSettings();
     }
+  }, [isAdmin]);
+
+  // Check URL params for GHL OAuth callback result
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ghl = params.get('ghl');
+    const reason = params.get('reason');
+
+    if (ghl === 'connected') {
+      setGhlBanner({ type: 'success', text: 'GoHighLevel connected successfully!' });
+    } else if (ghl === 'error') {
+      setGhlBanner({ type: 'error', text: `GoHighLevel connection failed: ${reason || 'unknown error'}` });
+    }
+
+    if (ghl) {
+      window.history.replaceState({}, '', '/settings');
+    }
+  }, []);
+
+  // Fetch GHL status on mount (admin only)
+  useEffect(() => {
+    if (!isAdmin) return;
+    setGhlLoading(true);
+    getGHLStatus()
+      .then(setGhlStatus)
+      .catch((err) => setGhlError(err.message))
+      .finally(() => setGhlLoading(false));
   }, [isAdmin]);
 
   const fetchClubSettings = async () => {
@@ -135,6 +170,18 @@ export function Settings() {
     }
   };
 
+  const handleGHLConnect = async () => {
+    setGhlConnecting(true);
+    setGhlError(null);
+    try {
+      const url = await initGHLAuth();
+      window.location.href = url;
+    } catch (err) {
+      setGhlError(err instanceof Error ? err.message : 'Connection failed');
+      setGhlConnecting(false);
+    }
+  };
+
   const handleSignOut = async () => {
     await signOut();
     navigate('/login');
@@ -189,6 +236,29 @@ export function Settings() {
       </header>
 
       <main className="container mx-auto px-4 py-6 space-y-4">
+        {ghlBanner && (
+          <div
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium ${
+              ghlBanner.type === 'success'
+                ? 'bg-green-50 text-green-700 border border-green-200'
+                : 'bg-red-50 text-red-700 border border-red-200'
+            }`}
+          >
+            {ghlBanner.type === 'success' ? (
+              <CheckCircle2 className="w-5 h-5 shrink-0" />
+            ) : (
+              <AlertCircle className="w-5 h-5 shrink-0" />
+            )}
+            <span className="flex-1">{ghlBanner.text}</span>
+            <button
+              onClick={() => setGhlBanner(null)}
+              className="text-lg leading-none opacity-60 hover:opacity-100"
+            >
+              &times;
+            </button>
+          </div>
+        )}
+
         {message && (
           <div
             className={`px-4 py-3 rounded-lg ${
@@ -407,6 +477,92 @@ export function Settings() {
         </div>
 
         {isAdmin && (
+          <>
+          {/* GoHighLevel Integration Card */}
+          <div className="bg-white rounded-xl shadow-md p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <LinkIcon className="w-5 h-5 text-[#1B2A4A]" />
+              <h3 className="text-lg font-bold text-[#1B2A4A]">GoHighLevel Integration</h3>
+            </div>
+
+            {ghlLoading ? (
+              <div className="flex items-center justify-center py-6">
+                <Loader2 className="w-6 h-6 text-[#1B2A4A] animate-spin" />
+              </div>
+            ) : ghlStatus?.connected ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-green-500" />
+                  <span className="text-sm font-medium text-green-700">Connected</span>
+                </div>
+
+                <div className="text-sm text-gray-600 space-y-1">
+                  <p>
+                    <span className="font-medium text-gray-700">Location ID:</span>{' '}
+                    {ghlStatus.locationId}
+                  </p>
+                  <p>
+                    <span className="font-medium text-gray-700">Token expires:</span>{' '}
+                    {ghlStatus.expiresAt
+                      ? new Date(ghlStatus.expiresAt).toLocaleString()
+                      : 'Unknown'}
+                  </p>
+                </div>
+
+                {ghlStatus.isExpired && (
+                  <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    Token expired — please reconnect
+                  </div>
+                )}
+
+                <button
+                  onClick={handleGHLConnect}
+                  disabled={ghlConnecting}
+                  className="w-full px-4 py-3 text-sm font-medium text-[#1B2A4A] bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {ghlConnecting ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <LinkIcon className="w-4 h-4" />
+                  )}
+                  Reconnect
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-gray-400" />
+                  <span className="text-sm font-medium text-gray-500">Not Connected</span>
+                </div>
+
+                <p className="text-sm text-gray-600">
+                  Connect to sync contacts, send meeting reminders, and automate social posts.
+                </p>
+
+                <button
+                  onClick={handleGHLConnect}
+                  disabled={ghlConnecting}
+                  className="w-full bg-[#D94F4F] hover:bg-[#C44444] text-white font-semibold py-3 rounded-lg transition disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {ghlConnecting ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <LinkIcon className="w-4 h-4" />
+                  )}
+                  Connect GoHighLevel
+                </button>
+              </div>
+            )}
+
+            {ghlError && (
+              <div className="flex items-center gap-2 mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                {ghlError}
+              </div>
+            )}
+          </div>
+
           <div className="bg-gradient-to-br from-[#1B2A4A] to-[#2D3E5F] rounded-xl shadow-md p-6 text-white">
             <h3 className="text-xl font-bold mb-4">Club Administration</h3>
 
@@ -601,6 +757,7 @@ export function Settings() {
               </button>
             </div>
           </div>
+          </>
         )}
       </main>
       <BottomNav />
