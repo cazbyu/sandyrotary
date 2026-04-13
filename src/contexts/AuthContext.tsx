@@ -200,8 +200,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         member,
-        isAdmin: member?.is_admin ?? false,
-        isLeader: isLeader || (member?.is_admin ?? false),
+        isAdmin: member?.role === 'admin',
+        isLeader: isLeader || (member?.role === 'admin'),
         loading,
         error,
         signOut,

@@ -13,7 +13,7 @@ interface Member {
   profile_photo_url?: string;
   member_status: string;
   member_title: string;
-  is_admin: boolean;
+  role: string;
 }
 
 export function ManageMembers() {
@@ -108,7 +108,7 @@ export function ManageMembers() {
                 </div>
                 <div className="text-gray-600 text-sm flex items-center gap-2">
                   <span>{member.member_status}</span>
-                  {member.is_admin && (
+                  {member.role === 'admin' && (
                     <>
                       <span>•</span>
                       <span className="text-[#D94F4F] font-semibold">Admin</span>
@@ -154,7 +154,7 @@ function EditMemberModal({
 }) {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    isAdmin: member.is_admin,
+    isAdmin: member.role === 'admin',
     memberStatus: member.member_status,
     memberTitle: member.member_title,
   });
@@ -167,7 +167,7 @@ function EditMemberModal({
         .schema('p0012_rotary')
         .from('members')
         .update({
-          is_admin: formData.isAdmin,
+          role: formData.isAdmin ? 'admin' : 'member',
           member_status: formData.memberStatus,
           member_title: formData.memberTitle,
         })

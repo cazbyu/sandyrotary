@@ -9,7 +9,7 @@ export interface Member {
   id: string;
   first_name: string;
   last_name: string;
-  is_admin: boolean;
+  role: string;
   district?: string;
   club_name?: string;
   home_email: string;

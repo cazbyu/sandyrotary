@@ -43,7 +43,7 @@ export async function validateAdminSession(authHeader) {
       .maybeSingle());
   }
 
-  if (!member || !member.is_admin) return null;
+  if (!member || member.role !== 'admin') return null;
   return member;
 }
 
