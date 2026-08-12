@@ -28,19 +28,27 @@ export async function validateAdminSession(authHeader) {
   if (error || !user) return null;
 
   // Try by id first (matches AuthContext pattern)
-  let { data: member } = await supabase
-    .from('0012-sr-members')
+  let { data: member, error: memberError } = await supabase
+    .schema('p0012_rotary')
+    .from('members')
     .select('*')
     .eq('id', user.id)
     .maybeSingle();
+  if (memberError) {
+    console.error('validateAdminSession member lookup failed:', memberError.message);
+  }
 
   // Fallback: by home_email
   if (!member && user.email) {
-    ({ data: member } = await supabase
-      .from('0012-sr-members')
+    ({ data: member, error: memberError } = await supabase
+      .schema('p0012_rotary')
+      .from('members')
       .select('*')
       .eq('home_email', user.email)
       .maybeSingle());
+    if (memberError) {
+      console.error('validateAdminSession member lookup by email failed:', memberError.message);
+    }
   }
 
   if (!member || member.role !== 'admin') return null;
