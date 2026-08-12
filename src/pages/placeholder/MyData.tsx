@@ -291,14 +291,17 @@ export function MyData() {
       if (updateError) throw updateError;
 
       const existingSocialIds = socialMedia.filter(s => s.id && !s.isNew).map(s => s.id);
-      const { error: deleteError } = await supabase
+      let deleteQuery = supabase
         .schema('p0012_rotary')
         .from('member_social_media')
         .delete()
-        .eq('member_id', member!.id)
-        .not('id', 'in', `(${existingSocialIds.join(',')})`);
+        .eq('member_id', member!.id);
+      if (existingSocialIds.length > 0) {
+        deleteQuery = deleteQuery.not('id', 'in', `(${existingSocialIds.join(',')})`);
+      }
+      const { error: deleteError } = await deleteQuery;
 
-      if (deleteError && existingSocialIds.length > 0) throw deleteError;
+      if (deleteError) throw deleteError;
 
       const newSocialMedia = socialMedia.filter(s => s.isNew || !s.id);
       if (newSocialMedia.length > 0) {

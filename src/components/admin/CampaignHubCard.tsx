@@ -110,7 +110,7 @@ export function CampaignHubCard() {
         .schema('p0012_rotary')
         .from('members')
         .select('id, first_name, last_name')
-        .eq('is_active', true)
+        .eq('member_status', 'Active')
         .order('first_name', { ascending: true });
 
       if (error) throw error;

@@ -63,8 +63,8 @@ export function ClubInfo() {
     }
   };
 
-  const handleGetDirections = () => {
-    const address = [
+  const getMeetingAddress = () => {
+    return [
       settings.meeting_address_line1,
       settings.meeting_city,
       settings.meeting_state,
@@ -72,9 +72,15 @@ export function ClubInfo() {
     ]
       .filter(Boolean)
       .join(', ');
+  };
 
-    const encodedAddress = encodeURIComponent(address);
-    window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}`, '_blank');
+  const getMapsUrl = () => {
+    const encodedAddress = encodeURIComponent(getMeetingAddress());
+    return `https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}`;
+  };
+
+  const handleGetDirections = () => {
+    window.open(getMapsUrl(), '_blank');
   };
 
   const handleShareMeetingInfo = async () => {
@@ -82,16 +88,19 @@ export function ClubInfo() {
     const place = settings.meeting_place_name || '';
     const address = settings.meeting_address_line1 || '';
     const city = settings.meeting_city || '';
+    const state = settings.meeting_state || '';
+    const postalCode = settings.meeting_postal_code || '';
 
     let text: string;
     if (time || place) {
-      const parts = [time, place, address, city].filter(Boolean);
+      const parts = [time, place, address, city, state, postalCode].filter(Boolean);
       text = `${parts.join(', ')} — Join us!`;
     } else {
       text = 'Come visit the Sandy Rotary Club!';
     }
 
-    await shareContent('Sandy Rotary Club', text, window.location.origin);
+    const shareUrl = getMeetingAddress() ? getMapsUrl() : window.location.origin;
+    await shareContent('Sandy Rotary Club', text, shareUrl);
   };
 
   const handleCopyClubInfo = () => {

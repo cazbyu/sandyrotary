@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, Users, Calendar, BarChart3, Settings, MessageCircle } from 'lucide-react';
+import { Home, Users, Calendar, BarChart3, MessageCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 export function BottomNav() {
@@ -37,7 +37,6 @@ export function BottomNav() {
     { key: 'members', label: 'Members', icon: Users, path: '/members' },
     { key: 'calendar', label: 'Calendar', icon: Calendar, path: '/calendar' },
     { key: 'scorecard', label: 'Scorecard', icon: BarChart3, path: '/scorecard' },
-    { key: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
   ];
 
   const isActive = (path: string) => {

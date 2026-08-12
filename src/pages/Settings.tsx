@@ -7,8 +7,8 @@ import { BottomNav } from '../components/BottomNav';
 import { getGHLStatus, initGHLAuth, GHLStatus } from '../lib/ghl';
 
 interface ClubSetting {
-  setting_key: string;
-  setting_value: string;
+  key: string;
+  value: string;
 }
 
 export function Settings() {
@@ -90,7 +90,7 @@ export function Settings() {
 
       const settingsMap: Record<string, string> = {};
       data?.forEach((setting: ClubSetting) => {
-        settingsMap[setting.setting_key] = setting.setting_value || '';
+        settingsMap[setting.key] = setting.value || '';
       });
 
       setClubSettings(settingsMap);
@@ -193,16 +193,16 @@ export function Settings() {
 
     try {
       const updates = Object.entries(clubSettings).map(([key, value]) => ({
-        setting_key: key,
-        setting_value: value,
+        key,
+        value,
       }));
 
       for (const update of updates) {
         const { error } = await supabase
           .schema('p0012_rotary')
           .from('club_settings')
-          .update({ setting_value: update.setting_value })
-          .eq('setting_key', update.setting_key);
+          .update({ value: update.value })
+          .eq('key', update.key);
 
         if (error) throw error;
       }

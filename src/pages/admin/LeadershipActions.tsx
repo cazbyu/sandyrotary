@@ -504,7 +504,11 @@ export function LeadershipActions() {
   };
 
   const filteredActions = filter === 'mine'
-    ? actions.filter((a) => a.responsible_member_id === user?.id)
+    ? actions.filter(
+        (a) =>
+          a.responsible_member_id === user?.id ||
+          (!!user?.id && (a.responsible_member_ids ?? []).includes(user.id))
+      )
     : actions;
 
   const formatDate = (dateStr: string | null) => {

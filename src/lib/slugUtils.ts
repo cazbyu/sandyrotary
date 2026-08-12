@@ -30,15 +30,15 @@ export async function shareContent(title: string, text: string, url: string): Pr
       await navigator.share({ title, text, url });
     } catch (error) {
       if ((error as Error).name !== 'AbortError') {
-        await fallbackCopyToClipboard(url);
+        await fallbackCopyToClipboard(text, url);
       }
     }
   } else {
-    await fallbackCopyToClipboard(url);
+    await fallbackCopyToClipboard(text, url);
   }
 }
 
-async function fallbackCopyToClipboard(url: string): Promise<void> {
-  await navigator.clipboard.writeText(url);
-  alert('Link copied to clipboard!');
+async function fallbackCopyToClipboard(text: string, url: string): Promise<void> {
+  await navigator.clipboard.writeText(`${text}\n${url}`);
+  alert('Copied to clipboard!');
 }

@@ -25,7 +25,7 @@ interface Story {
 
 export function Stories() {
   const navigate = useNavigate();
-  const { isLeader } = useAuth();
+  const { isLeader, isAdmin } = useAuth();
   const [loading, setLoading] = useState(true);
   const [stories, setStories] = useState<Story[]>([]);
 
@@ -162,7 +162,7 @@ export function Stories() {
           )}
         </div>
 
-        {isLeader && (
+        {isAdmin && (
           <button
             onClick={() => navigate('/admin/stories/new')}
             className="fixed bottom-24 right-6 w-14 h-14 bg-[#1B2A4A] rounded-full shadow-lg flex items-center justify-center hover:bg-[#1B2A4A]/90 transition-colors z-50"

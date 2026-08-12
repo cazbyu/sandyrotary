@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Flame, ArrowLeft, MessageCircle } from 'lucide-react';
+import { Flame, ArrowLeft, MessageCircle, Settings } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 interface LayoutProps {
@@ -61,6 +61,14 @@ export function Layout({ children, showHeader = true, showBackButton = false, ba
                   <MessageCircle className="w-6 h-6 text-green-400" />
                 </button>
               )}
+              <button
+                onClick={() => navigate('/settings')}
+                className="w-12 h-12 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors"
+                title="Settings"
+                aria-label="Settings"
+              >
+                <Settings className="w-6 h-6 text-white" />
+              </button>
             </div>
           </div>
 
