@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Flame, Mail, ArrowLeft } from 'lucide-react';
+import { Mail, ArrowLeft } from 'lucide-react';
 
 export function AccessDenied() {
   const navigate = useNavigate();
@@ -13,9 +13,7 @@ export function AccessDenied() {
       <div className="w-full max-w-md">
         <div className="bg-white rounded-2xl shadow-2xl p-8 text-center">
           <div className="flex justify-center mb-6">
-            <div className="w-24 h-24 bg-[#D94F4F] rounded-full flex items-center justify-center shadow-lg">
-              <Flame className="w-12 h-12 text-white" />
-            </div>
+            <img src="/logo-login.png" alt="Sandy Rotary Club" className="w-24 h-24 rounded-full object-contain shadow-lg" />
           </div>
 
           <h1 className="text-2xl font-bold text-[#1B2A4A] mb-2">

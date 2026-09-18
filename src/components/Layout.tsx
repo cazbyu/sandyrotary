@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Flame, ArrowLeft, MessageCircle, Settings } from 'lucide-react';
+import { ArrowLeft, MessageCircle, Settings } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 interface LayoutProps {
@@ -74,9 +74,7 @@ export function Layout({ children, showHeader = true, showBackButton = false, ba
 
           {!title && (
             <div className="flex flex-col items-center text-white">
-              <div className="w-20 h-20 bg-[#D94F4F] rounded-full flex items-center justify-center shadow-lg mb-4">
-                <Flame className="w-10 h-10 text-white" />
-              </div>
+              <img src="/logo-login.png" alt="Sandy Rotary Club" className="w-20 h-20 rounded-full object-contain shadow-lg mb-4" />
 
               <h1 className="text-2xl font-bold mb-1">
                 Sandy Rotary Club

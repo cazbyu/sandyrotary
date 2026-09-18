@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Flame, Shield, User } from 'lucide-react';
+import { Shield, User } from 'lucide-react';
 
 export function Login() {
   const [email, setEmail] = useState('');
@@ -192,9 +192,7 @@ export function Login() {
         <div className="w-full max-w-md">
           <div className="bg-white rounded-2xl shadow-2xl p-8">
             <div className="flex justify-center mb-6">
-              <div className="w-24 h-24 bg-[#D94F4F] rounded-full flex items-center justify-center shadow-lg">
-                <Flame className="w-12 h-12 text-white" />
-              </div>
+              <img src="/logo-login.png" alt="Sandy Rotary Club" className="w-24 h-24 rounded-full object-contain shadow-lg" />
             </div>
 
             <div className="text-center py-8">
@@ -235,9 +233,7 @@ export function Login() {
       <div className="w-full max-w-md">
         <div className="bg-white rounded-2xl shadow-2xl p-8">
           <div className="flex justify-center mb-6">
-            <div className="w-24 h-24 bg-[#D94F4F] rounded-full flex items-center justify-center shadow-lg">
-              <Flame className="w-12 h-12 text-white" />
-            </div>
+            <img src="/logo-login.png" alt="Sandy Rotary Club" className="w-24 h-24 rounded-full object-contain shadow-lg" />
           </div>
 
           <h1 className="text-3xl font-bold text-[#1B2A4A] text-center mb-2">
