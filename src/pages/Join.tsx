@@ -1,11 +1,57 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Mail, ArrowLeft } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 export function Join() {
   const membershipEmail = import.meta.env.VITE_MEMBERSHIP_EMAIL;
   const mailtoHref = membershipEmail
     ? `mailto:${membershipEmail}?subject=${encodeURIComponent('Interested in joining Sandy Rotary')}`
     : undefined;
+
+  const [settings, setSettings] = useState<Record<string, string>>({});
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const { data } = await supabase
+          .schema('p0012_rotary')
+          .from('club_settings')
+          .select('key, value')
+          .in('key', [
+            'meeting_place_name',
+            'meeting_time',
+            'meeting_address_line1',
+            'meeting_city',
+            'meeting_state',
+            'meeting_zip',
+            'club_website_url',
+          ]);
+
+        const map: Record<string, string> = {};
+        (data || []).forEach((row: { key: string; value: string }) => {
+          if (row.value) map[row.key] = row.value;
+        });
+        setSettings(map);
+      } catch {
+        // silently fail — placeholders will show
+      } finally {
+        setLoaded(true);
+      }
+    };
+    loadSettings();
+  }, []);
+
+  const place = settings.meeting_place_name || '—';
+  const time = settings.meeting_time || '—';
+  const addressParts = [
+    settings.meeting_address_line1,
+    settings.meeting_city,
+    settings.meeting_state,
+    settings.meeting_zip,
+  ].filter(Boolean);
+  const address = addressParts.length > 0 ? addressParts.join(', ') : null;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#1B2A4A] to-[#2D3E5F] flex items-center justify-center p-4">
@@ -20,10 +66,13 @@ export function Join() {
           </h1>
 
           <div className="text-gray-600 text-sm text-left space-y-3 mb-6">
-            <p>
-              Sandy Rotary Club meets every Wednesday at noon at the Sandy City
-              Hall community room. We're part of Rotary District 5420.
-            </p>
+            {loaded && (
+              <p>
+                Sandy Rotary Club meets {time} at {place}.
+                {address && <><br /><span className="text-gray-500 text-xs">{address}</span></>}
+                {' '}We're part of Rotary District 5420.
+              </p>
+            )}
             <p>
               As a Rotarian you'll join a global network of 1.4 million
               community leaders dedicated to service above self. Membership
