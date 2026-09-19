@@ -10,6 +10,7 @@ interface AuthContextType {
   loading: boolean;
   error: string | null;
   signOut: () => Promise<void>;
+  isNonMember: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -18,6 +19,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [member, setMember] = useState<Member | null>(null);
   const [isLeader, setIsLeader] = useState(false);
+  const [isNonMember, setIsNonMember] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const authCompleted = useRef(false);
@@ -169,10 +171,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
       } else {
         console.log('No member record found for user');
-        setError('Your account is not registered as a club member. Please contact your administrator.');
-        await supabase.auth.signOut();
+        setIsNonMember(true);
         setMember(null);
-        setUser(null);
         authCompleted.current = true;
         if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
       }
@@ -193,6 +193,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     setUser(null);
     setMember(null);
+    setIsNonMember(false);
   };
 
   return (
@@ -202,6 +203,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         member,
         isAdmin: member?.role === 'admin',
         isLeader: isLeader || (member?.role === 'admin'),
+        isNonMember,
         loading,
         error,
         signOut,

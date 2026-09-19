@@ -3,6 +3,8 @@ import { AuthProvider } from './contexts/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Login } from './pages/Login';
 import { AccessDenied } from './pages/AccessDenied';
+import { Join } from './pages/Join';
+import { ReferPublic } from './pages/ReferPublic';
 import { Home } from './pages/Home';
 import { MyData } from './pages/placeholder/MyData';
 import { Members } from './pages/placeholder/Members';
@@ -49,6 +51,8 @@ function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/access-denied" element={<AccessDenied />} />
+          <Route path="/join" element={<Join />} />
+          <Route path="/refer-public" element={<ReferPublic />} />
 
           <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
           <Route path="/profile-hub" element={<ProtectedRoute><ProfileHub /></ProtectedRoute>} />
