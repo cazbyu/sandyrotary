@@ -145,6 +145,8 @@ export function CalendarPage() {
         return 'bg-green-500 text-white';
       case 'Club Service Project':
         return 'bg-[#D94F4F] text-white';
+      case 'No Meeting':
+        return 'bg-gray-200 text-gray-600';
       default:
         return 'bg-gray-500 text-white';
     }
