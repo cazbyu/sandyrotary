@@ -1,28 +1,25 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BarChart3, ChevronDown, Lightbulb, ListChecks, Loader2, MessageSquare } from 'lucide-react';
-import { supabase, MEETING_RATING_CATEGORIES, SERVICE_RATING_CATEGORIES, FUNDRAISER_RATING_CATEGORIES } from '../../lib/supabase';
+import {
+  supabase,
+  PostEventResults,
+  MEETING_RATING_CATEGORIES,
+  SERVICE_RATING_CATEGORIES,
+  FUNDRAISER_RATING_CATEGORIES,
+} from '../../lib/supabase';
+import { clubDateString, eventDateLabel, lastOpenDayLabel } from '../../lib/surveyWindow';
 import { PulseChart } from './PulseChart';
 import { SuggestionFeed } from './SuggestionFeed';
+import { IdeaReviewFeed } from './IdeaReviewFeed';
 import { useAuth } from '../../contexts/AuthContext';
 
 type InsightTab = 'meetings' | 'service' | 'fundraisers';
 
-interface EventComment {
+interface SurveyOption {
   id: string;
-  survey_id: string;
-  member_id: string;
-  comment: string;
   event_name: string;
-  event_type: string;
-  created_at: string;
-  member_name?: string;
-}
-
-interface RatingAvg {
-  category: string;
-  label: string;
-  avg: number;
+  event_date: string;
 }
 
 function getCategoriesForType(type: InsightTab) {
@@ -41,127 +38,87 @@ function getEventType(tab: InsightTab): string {
   }
 }
 
+function stars(n: number | undefined) {
+  if (!n) return '';
+  return '★'.repeat(n) + '☆'.repeat(5 - n);
+}
+
+/**
+ * Leader view of post-event feedback. Reads only p0012_rotary.post_event_results(), which never
+ * returns member ids or timestamps: while a survey is open it gives the count and comments from
+ * members who shared their name; after it closes, averages and unnamed comments once 3+ members
+ * (other than the viewer) answered without their name.
+ */
 export function InsightDashboardCard() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<InsightTab>('meetings');
-  const [comments, setComments] = useState<EventComment[]>([]);
-  const [ratingAvgs, setRatingAvgs] = useState<RatingAvg[]>([]);
+  const [surveys, setSurveys] = useState<SurveyOption[]>([]);
+  const [selectedId, setSelectedId] = useState<string>('');
+  const [results, setResults] = useState<PostEventResults | null>(null);
   const [loadingInsights, setLoadingInsights] = useState(false);
-  const [savingIdea, setSavingIdea] = useState<string | null>(null);
+  const [savingIdea, setSavingIdea] = useState<number | null>(null);
 
   useEffect(() => {
-    loadInsights(activeTab);
-  }, [activeTab]);
+    if (isOpen) loadSurveys(activeTab);
+  }, [activeTab, isOpen]);
 
-  const loadInsights = async (tab: InsightTab) => {
+  useEffect(() => {
+    if (selectedId) loadResults(selectedId);
+    else setResults(null);
+  }, [selectedId]);
+
+  const loadSurveys = async (tab: InsightTab) => {
     setLoadingInsights(true);
-    const eventType = getEventType(tab);
-    const categories = getCategoriesForType(tab);
-
     try {
-      const { data: surveys, error: sError } = await supabase
+      const { data, error } = await supabase
         .schema('p0012_rotary')
         .from('post_event_surveys')
-        .select('id, event_name, event_type, event_date')
-        .eq('event_type', eventType)
+        .select('id, event_name, event_date')
+        .eq('event_type', getEventType(tab))
+        .lte('event_date', clubDateString())
         .order('event_date', { ascending: false })
-        .limit(10);
-
-      if (sError) throw sError;
-      if (!surveys || surveys.length === 0) {
-        setComments([]);
-        setRatingAvgs([]);
-        setLoadingInsights(false);
-        return;
-      }
-
-      const surveyIds = surveys.map((s) => s.id);
-      const surveyMap: Record<string, { event_name: string; event_type: string }> = {};
-      surveys.forEach((s) => { surveyMap[s.id] = { event_name: s.event_name, event_type: s.event_type }; });
-
-      const { data: responses, error: rError } = await supabase
-        .schema('p0012_rotary')
-        .from('post_event_responses')
-        .select('id, survey_id, member_id, ratings, comment, created_at')
-        .in('survey_id', surveyIds);
-
-      if (rError) throw rError;
-
-      // Calculate average ratings
-      const totals: Record<string, { sum: number; count: number }> = {};
-      categories.forEach((c) => { totals[c.key] = { sum: 0, count: 0 }; });
-
-      (responses || []).forEach((r) => {
-        if (r.ratings && typeof r.ratings === 'object') {
-          categories.forEach((c) => {
-            const val = (r.ratings as Record<string, number>)[c.key];
-            if (val && val > 0) {
-              totals[c.key].sum += val;
-              totals[c.key].count += 1;
-            }
-          });
-        }
-      });
-
-      setRatingAvgs(categories.map((c) => ({
-        category: c.key,
-        label: c.label,
-        avg: totals[c.key].count > 0 ? Math.round((totals[c.key].sum / totals[c.key].count) * 10) / 10 : 0,
-      })));
-
-      // Collect comments
-      const commentsArr: EventComment[] = [];
-      for (const r of (responses || [])) {
-        if (r.comment && r.comment.trim()) {
-          const info = surveyMap[r.survey_id];
-          commentsArr.push({
-            id: r.id,
-            survey_id: r.survey_id,
-            member_id: r.member_id,
-            comment: r.comment,
-            event_name: info?.event_name || '',
-            event_type: info?.event_type || eventType,
-            created_at: r.created_at,
-          });
-        }
-      }
-
-      // Resolve member names
-      const memberIds = [...new Set(commentsArr.map((c) => c.member_id))];
-      if (memberIds.length > 0) {
-        const { data: members } = await supabase
-          .schema('p0012_rotary')
-          .from('members')
-          .select('id, first_name, last_name')
-          .in('id', memberIds);
-
-        const nameMap: Record<string, string> = {};
-        (members || []).forEach((m) => { nameMap[m.id] = `${m.first_name} ${m.last_name}`; });
-        commentsArr.forEach((c) => { c.member_name = nameMap[c.member_id] || 'Member'; });
-      }
-
-      setComments(commentsArr.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
+        .limit(12);
+      if (error) throw error;
+      setSurveys(data || []);
+      setSelectedId(data && data.length > 0 ? data[0].id : '');
+      if (!data || data.length === 0) setResults(null);
     } catch (error) {
-      console.error('Error loading insights:', error);
+      console.error('Error loading surveys:', error);
     } finally {
       setLoadingInsights(false);
     }
   };
 
-  const handleAddToIdeaJar = async (c: EventComment) => {
-    if (!user) return;
-    setSavingIdea(c.id);
+  const loadResults = async (surveyId: string) => {
+    setLoadingInsights(true);
+    try {
+      const { data, error } = await supabase
+        .schema('p0012_rotary')
+        .rpc('post_event_results', { p_survey_id: surveyId });
+      if (error) throw error;
+      setResults(data as PostEventResults | null);
+    } catch (error) {
+      console.error('Error loading survey results:', error);
+      setResults(null);
+    } finally {
+      setLoadingInsights(false);
+    }
+  };
+
+  const handleAddToIdeaJar = async (text: string, index: number) => {
+    if (!user || !results) return;
+    setSavingIdea(index);
     try {
       const { error } = await supabase
         .schema('p0012_rotary')
         .from('idea_jar')
         .insert({
-          title: c.comment.substring(0, 100),
-          description: c.comment,
+          title: text.substring(0, 100),
+          description: text,
           source_type: 'survey_comment',
-          source_id: c.id,
+          source_id: results.survey_id,   // the survey, never the answer (answers stay unlinked from members)
           created_by: user.id,
         });
       if (error) throw error;
@@ -173,19 +130,8 @@ export function InsightDashboardCard() {
     }
   };
 
-  const handleProposedAction = (c: EventComment) => {
-    navigate('/admin/leadership-actions', { state: { prefill: c.comment } });
-  };
-
-  const formatRelativeTime = (dateStr: string): string => {
-    const diff = Date.now() - new Date(dateStr).getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 60) return `${mins}m ago`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}h ago`;
-    const days = Math.floor(hrs / 24);
-    if (days < 7) return `${days}d ago`;
-    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const handleProposedAction = (text: string) => {
+    navigate('/admin/leadership-actions', { state: { prefill: text } });
   };
 
   const tabs: { key: InsightTab; label: string }[] = [
@@ -193,6 +139,7 @@ export function InsightDashboardCard() {
     { key: 'service', label: 'Service' },
     { key: 'fundraisers', label: 'Fundraisers' },
   ];
+  const categories = getCategoriesForType(activeTab);
 
   return (
     <div className="bg-white rounded-xl shadow-md p-5">
@@ -240,83 +187,140 @@ export function InsightDashboardCard() {
         </div>
       )}
 
-      {/* Rating Averages */}
-      {loadingInsights ? (
-        <div className="flex justify-center py-6">
-          <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
-        </div>
-      ) : ratingAvgs.some((r) => r.avg > 0) ? (
-        <div className="mb-5">
-          <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
-            Average Ratings
-          </h3>
-          <div className="space-y-2">
-            {ratingAvgs.map((r) => (
-              <div key={r.category} className="flex items-center gap-3">
-                <span className="text-sm text-gray-600 w-36">{r.label}</span>
-                <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-[#D94F4F] rounded-full transition-all"
-                    style={{ width: `${(r.avg / 5) * 100}%` }}
-                  />
-                </div>
-                <span className="text-sm font-semibold text-gray-700 w-8 text-right">
-                  {r.avg > 0 ? r.avg : '-'}
-                </span>
+      {/* Post-event feedback */}
+      <div className="mb-5">
+        <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
+          {activeTab === 'meetings' ? 'Meeting Feedback' : 'Event Feedback'}
+        </h3>
+
+        {surveys.length === 0 && !loadingInsights ? (
+          <p className="text-sm text-gray-500 text-center py-4">No surveys yet</p>
+        ) : (
+          <>
+            <label htmlFor="insight-survey" className="sr-only">Meeting</label>
+            <select
+              id="insight-survey"
+              value={selectedId}
+              onChange={(e) => setSelectedId(e.target.value)}
+              className="w-full h-11 border border-gray-300 rounded-lg px-3 text-sm font-semibold text-[#1B2A4A] bg-white mb-4"
+            >
+              {surveys.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {eventDateLabel(s.event_date)} · {s.event_name}
+                </option>
+              ))}
+            </select>
+
+            {loadingInsights ? (
+              <div className="flex justify-center py-6">
+                <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
               </div>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <p className="text-sm text-gray-500 text-center py-4 mb-4">
-          No post-event survey data yet
-        </p>
-      )}
+            ) : results ? (
+              <>
+                {!results.closed ? (
+                  <p className="text-sm text-gray-600 bg-gray-50 rounded-lg p-3 mb-4">
+                    Open until {lastOpenDayLabel(results)} · {results.count}{' '}
+                    {results.count === 1 ? 'response' : 'responses'} so far. Results appear after the survey closes.
+                  </p>
+                ) : !results.results_visible ? (
+                  <p className="text-sm text-gray-600 bg-gray-50 rounded-lg p-3 mb-4">
+                    {results.count} {results.count === 1 ? 'response' : 'responses'}. Results appear after 3.
+                  </p>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-2 gap-3 mb-4">
+                      {categories.map((c) => {
+                        const a = results.averages?.[c.key];
+                        return (
+                          <div key={c.key} className="bg-gray-50 rounded-xl p-3">
+                            <div className="text-xs font-semibold text-gray-500">{c.label}</div>
+                            <div className="text-2xl font-extrabold text-[#1B2A4A]">{a ? a.avg.toFixed(1) : '–'}</div>
+                            <div className="text-xs text-gray-500">
+                              {a ? `out of 5 · ${a.n} ${a.n === 1 ? 'response' : 'responses'}` : 'Not enough answers yet'}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {categories.map((c) => {
+                      const d = results.distribution?.[c.key];
+                      if (!d || !d.n) return null;
+                      return (
+                        <div key={c.key} className="mb-4">
+                          <div className="text-sm font-semibold text-[#1B2A4A] mb-2">{c.label} ratings</div>
+                          {(['5', '4', '3', '2', '1'] as const).map((k) => (
+                            <div key={k} className="flex items-center gap-2 mb-1">
+                              <span className="w-7 text-xs font-semibold text-gray-600">{k}★</span>
+                              <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                                <div className="h-full bg-[#1B2A4A] rounded-full" style={{ width: `${(d[k] / d.n) * 100}%` }} />
+                              </div>
+                              <span className="w-6 text-right text-xs text-gray-500">{d[k]}</span>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })}
+                  </>
+                )}
+
+                {/* Comments */}
+                <div className="flex items-center gap-2 mb-3">
+                  <MessageSquare className="w-4 h-4 text-gray-500" />
+                  <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Comments</h4>
+                </div>
+                {results.comments.length === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-3">No comments to show</p>
+                ) : (
+                  <div className="max-h-64 overflow-y-auto space-y-3 pr-1">
+                    {results.comments.map((c, i) => (
+                      <div key={i} className={`rounded-lg p-3 border ${c.name ? 'border-[#1B2A4A]' : 'border-gray-200'}`}>
+                        <p className="text-xs font-semibold text-gray-600 mb-1">
+                          {c.name
+                            ? `${c.name} (chose to share)${categories
+                                .map((cat) => (c.ratings?.[cat.key] ? ` · ${cat.label} ${stars(c.ratings?.[cat.key])}` : ''))
+                                .join('')}`
+                            : 'A member'}
+                        </p>
+                        <p className="text-sm text-gray-800 leading-relaxed mb-2">{c.text}</p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleAddToIdeaJar(c.text, i)}
+                            disabled={savingIdea === i}
+                            className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors disabled:opacity-50"
+                          >
+                            <Lightbulb className="w-3 h-3" />
+                            {savingIdea === i ? 'Saving...' : 'Idea Jar'}
+                          </button>
+                          <button
+                            onClick={() => handleProposedAction(c.text)}
+                            className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
+                          >
+                            <ListChecks className="w-3 h-3" />
+                            Proposed Action
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <p className="text-xs text-gray-500 border border-dashed border-gray-300 rounded-lg p-3 mt-4 leading-relaxed">
+                  Names appear only when a member turns on "Include my name." Averages and other comments
+                  appear after the survey closes, once at least 3 members (not counting you) answered without their name.
+                </p>
+              </>
+            ) : null}
+          </>
+        )}
+      </div>
 
       <hr className="border-gray-100 mb-5" />
 
-      {/* Comments & Feedback */}
+      {/* Submitted ideas */}
       <div className="mb-5">
-        <div className="flex items-center gap-2 mb-3">
-          <MessageSquare className="w-4 h-4 text-gray-500" />
-          <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
-            Comments &amp; Feedback
-          </h3>
-        </div>
-
-        {comments.length === 0 ? (
-          <p className="text-sm text-gray-500 text-center py-4">No comments yet</p>
-        ) : (
-          <div className="max-h-64 overflow-y-auto space-y-3 pr-1">
-            {comments.map((c) => (
-              <div key={c.id} className="border-b border-gray-100 pb-3 last:border-b-0">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm font-semibold text-gray-800">{c.member_name || 'Member'}</span>
-                  <span className="text-xs text-gray-400">{formatRelativeTime(c.created_at)}</span>
-                </div>
-                <p className="text-sm text-gray-600 leading-relaxed mb-1">{c.comment}</p>
-                <p className="text-xs text-gray-400 mb-2">{c.event_name}</p>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleAddToIdeaJar(c)}
-                    disabled={savingIdea === c.id}
-                    className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors disabled:opacity-50"
-                  >
-                    <Lightbulb className="w-3 h-3" />
-                    {savingIdea === c.id ? 'Saving...' : 'Idea Jar'}
-                  </button>
-                  <button
-                    onClick={() => handleProposedAction(c)}
-                    className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
-                  >
-                    <ListChecks className="w-3 h-3" />
-                    Proposed Action
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
+          Submitted Ideas
+        </h3>
+        <IdeaReviewFeed />
       </div>
 
       <hr className="border-gray-100 mb-5" />

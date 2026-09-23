@@ -23,6 +23,7 @@ import {
   MEETING_ROLES,
 } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { clubDateString, isSurveyOpen } from '../../lib/surveyWindow';
 
 interface Celebration {
   id: string;
@@ -112,7 +113,6 @@ export function MeetingOpsCard() {
   const [activeSurvey, setActiveSurvey] = useState<WeeklySurvey | null>(null);
   const [loadingSurvey, setLoadingSurvey] = useState(true);
   const [activePostSurvey, setActivePostSurvey] = useState<PostEventSurvey | null>(null);
-  const [creatingPostSurvey, setCreatingPostSurvey] = useState(false);
 
   // Card-level collapse
   const [isOpen, setIsOpen] = useState(false);
@@ -531,6 +531,7 @@ export function MeetingOpsCard() {
     }
   };
 
+  // Post-meeting surveys are created by schedule-sync for every meeting; this only shows the open one.
   const loadActivePostSurvey = async () => {
     try {
       const { data, error } = await supabase
@@ -539,63 +540,14 @@ export function MeetingOpsCard() {
         .select('*')
         .eq('is_active', true)
         .eq('event_type', 'meeting')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .gt('closes_at', new Date().toISOString())
+        .lte('event_date', clubDateString())
+        .order('event_date', { ascending: false });
 
       if (error) throw error;
-      setActivePostSurvey(data);
+      setActivePostSurvey((data || []).find((s) => isSurveyOpen(s)) ?? null);
     } catch (error) {
       console.error('Error loading post-meeting survey:', error);
-    }
-  };
-
-  const handleCreatePostMeetingSurvey = async () => {
-    if (!user) return;
-    setCreatingPostSurvey(true);
-    try {
-      // Deactivate existing
-      await supabase
-        .schema('p0012_rotary')
-        .from('post_event_surveys')
-        .update({ is_active: false })
-        .eq('is_active', true)
-        .eq('event_type', 'meeting');
-
-      const today = new Date().toISOString().split('T')[0];
-      const { data, error } = await supabase
-        .schema('p0012_rotary')
-        .from('post_event_surveys')
-        .insert({
-          event_type: 'meeting',
-          event_date: meetingDate || today,
-          event_name: `Weekly Meeting - ${formatMeetingDate(meetingDate || today)}`,
-          created_by: user.id,
-          is_active: true,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      setActivePostSurvey(data);
-    } catch (error) {
-      console.error('Error creating post-meeting survey:', error);
-    } finally {
-      setCreatingPostSurvey(false);
-    }
-  };
-
-  const handleDeactivatePostSurvey = async () => {
-    if (!activePostSurvey) return;
-    try {
-      await supabase
-        .schema('p0012_rotary')
-        .from('post_event_surveys')
-        .update({ is_active: false })
-        .eq('id', activePostSurvey.id);
-      setActivePostSurvey(null);
-    } catch (error) {
-      console.error('Error deactivating post-meeting survey:', error);
     }
   };
 
@@ -1063,28 +1015,18 @@ export function MeetingOpsCard() {
         </button>
         {showPostSurvey && (
         <>
-        <p className="text-xs text-gray-400 mb-3">
-          Rates: Meal, Administrative Delivery, Speaker (1-5 stars each)
+        <p className="text-xs text-gray-500 mb-3">
+          A survey opens automatically at the start of every meeting (Speaker and Meal, 1–5 stars) and
+          stays open until the following Tuesday. Results are in the Insight Dashboard.
         </p>
-        <button
-          onClick={handleCreatePostMeetingSurvey}
-          disabled={creatingPostSurvey}
-          className="w-full bg-[#1B2A4A] hover:bg-[#2D3E5F] text-white font-semibold py-2.5 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-        >
-          {creatingPostSurvey ? 'Creating...' : 'Activate Post-Meeting Survey'}
-        </button>
-        {activePostSurvey && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-3">
+        {activePostSurvey ? (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
             <p className="text-xs font-medium text-blue-800">
-              Active: {activePostSurvey.event_name}
+              Open now: {activePostSurvey.event_name}
             </p>
-            <button
-              onClick={handleDeactivatePostSurvey}
-              className="mt-2 text-xs text-red-600 hover:text-red-800 font-medium"
-            >
-              Deactivate
-            </button>
           </div>
+        ) : (
+          <p className="text-xs text-gray-400">No survey is open right now.</p>
         )}
         </>
         )}

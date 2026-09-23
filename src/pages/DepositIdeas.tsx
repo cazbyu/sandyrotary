@@ -15,6 +15,7 @@ import { BottomNav } from '../components/BottomNav';
 import { SuggestionBox } from '../components/home/SuggestionBox';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import { IDEA_CATEGORIES, getCategoryColor, getCategoryLabel } from '../lib/ideaCategories';
 
 interface DepositIdea {
   id: string;
@@ -27,42 +28,7 @@ interface DepositIdea {
   user_id: string;
 }
 
-const CATEGORIES = [
-  { value: 'impact_story', label: 'Impact Story' },
-  { value: 'service_project', label: 'Service Project' },
-  { value: 'fundraising', label: 'Fundraising' },
-  { value: 'meeting', label: 'Meeting Structure' },
-  { value: 'speaker', label: 'Guest Speaker Suggestion' },
-  { value: 'speaker_feedback', label: 'Speaker / Event Feedback' },
-  { value: 'committee', label: 'Committee Interest' },
-  { value: 'other', label: 'Other' },
-];
-
-function getCategoryLabel(value: string | null) {
-  if (!value) return 'General';
-  return CATEGORIES.find((c) => c.value === value)?.label ?? value;
-}
-
-function getCategoryColor(value: string | null) {
-  switch (value) {
-    case 'impact_story':
-      return 'bg-purple-100 text-purple-700';
-    case 'service_project':
-      return 'bg-teal-100 text-teal-700';
-    case 'fundraising':
-      return 'bg-green-100 text-green-700';
-    case 'meeting':
-      return 'bg-blue-100 text-blue-700';
-    case 'speaker':
-      return 'bg-amber-100 text-amber-700';
-    case 'speaker_feedback':
-      return 'bg-orange-100 text-orange-700';
-    case 'committee':
-      return 'bg-sky-100 text-sky-700';
-    default:
-      return 'bg-gray-100 text-gray-600';
-  }
-}
+const CATEGORIES = IDEA_CATEGORIES;
 
 export function DepositIdeas() {
   const navigate = useNavigate();

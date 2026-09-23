@@ -83,19 +83,41 @@ export interface PostEventSurvey {
   event_type: 'meeting' | 'service' | 'fundraiser';
   event_date: string;
   event_name: string;
-  reference_id?: string;
+  reference_id?: string | null;
   is_active: boolean;
-  created_by: string;
+  opens_at?: string | null;
+  closes_at?: string | null;
+  created_by: string | null;
   created_at: string;
 }
 
+/** A member's own answer (members can only read their own rows). */
 export interface PostEventResponse {
   id: string;
   survey_id: string;
-  member_id: string;
+  member_id: string | null;
   ratings: Record<string, number>;
   comment?: string | null;
+  share_name: boolean;
   created_at: string;
+  updated_at?: string;
+}
+
+/** Leader view from p0012_rotary.post_event_results(): never includes member ids or timestamps. */
+export interface PostEventResults {
+  survey_id: string;
+  event_type: 'meeting' | 'service' | 'fundraiser';
+  event_date: string;
+  event_name: string;
+  opens_at: string | null;
+  closes_at: string;
+  closed: boolean;
+  count: number;
+  min_responses: number;
+  results_visible: boolean;
+  averages: Record<string, { avg: number; n: number }> | null;
+  distribution: Record<string, Record<'1' | '2' | '3' | '4' | '5' | 'n', number>> | null;
+  comments: { text: string; name: string | null; ratings?: Record<string, number> }[];
 }
 
 export interface IdeaJarItem {
@@ -112,9 +134,8 @@ export interface IdeaJarItem {
 }
 
 export const MEETING_RATING_CATEGORIES = [
-  { key: 'meal', label: 'Meal' },
-  { key: 'admin_delivery', label: 'Administrative Delivery' },
   { key: 'speaker', label: 'Speaker' },
+  { key: 'meal', label: 'Meal' },
 ];
 
 export const SERVICE_RATING_CATEGORIES = [
