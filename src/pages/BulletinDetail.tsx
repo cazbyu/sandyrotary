@@ -76,12 +76,12 @@ export function BulletinDetail() {
             >
               <ArrowLeft className="w-6 h-6 text-white" />
             </button>
-            <h1 className="text-xl font-bold text-white flex-1">Bulletin</h1>
+            <h1 className="text-xl font-bold text-white flex-1">Announcement</h1>
           </div>
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
               <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#1B2A4A]"></div>
-              <p className="mt-4 text-gray-600">Loading bulletin...</p>
+              <p className="mt-4 text-gray-600">Loading announcement...</p>
             </div>
           </div>
         </div>
@@ -101,10 +101,10 @@ export function BulletinDetail() {
             >
               <ArrowLeft className="w-6 h-6 text-white" />
             </button>
-            <h1 className="text-xl font-bold text-white flex-1">Bulletin</h1>
+            <h1 className="text-xl font-bold text-white flex-1">Announcement</h1>
           </div>
           <div className="text-center py-12">
-            <p className="text-gray-600">Bulletin not found</p>
+            <p className="text-gray-600">Announcement not found</p>
           </div>
         </div>
         <BottomNav />
@@ -122,7 +122,7 @@ export function BulletinDetail() {
           >
             <ArrowLeft className="w-6 h-6 text-white" />
           </button>
-          <h1 className="text-xl font-bold text-white flex-1">Bulletin</h1>
+          <h1 className="text-xl font-bold text-white flex-1">Announcement</h1>
           <button
             onClick={handleShare}
             className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10"
