@@ -5,6 +5,7 @@ import { Layout } from '../../../components/Layout';
 import { BottomNav } from '../../../components/BottomNav';
 import { supabase, Member } from '../../../lib/supabase';
 import { useAuth } from '../../../contexts/AuthContext';
+import { classifyWednesday, groupEventsByDate } from '../../../lib/meetingSchedule';
 
 function getStartWednesday(): Date {
   const now = new Date();
@@ -24,10 +25,6 @@ function generateWednesdays(start: Date, count: number): Date[] {
     result.push(d);
   }
   return result;
-}
-
-function isFourthWednesday(date: Date): boolean {
-  return date.getDay() === 3 && Math.ceil(date.getDate() / 7) === 4;
 }
 
 function toDateString(date: Date): string {
@@ -69,6 +66,7 @@ interface CalendarEvent {
   id: string;
   event_name: string;
   start_date: string;
+  category: string | null;
 }
 
 interface Column {
@@ -76,6 +74,9 @@ interface Column {
   date: Date;
   isMeeting: boolean;
   isSocial: boolean;
+  isNoMeeting: boolean;
+  // Header label only. Wednesday columns keep `event` unset so saved plans keep event_id null.
+  lunchName?: string;
   event?: CalendarEvent;
 }
 
@@ -104,12 +105,19 @@ export function Attendance() {
 
   const buildColumns = useCallback(
     (evts: CalendarEvent[]): Column[] => {
-      const cols: Column[] = wednesdays.map((date) => ({
-        dateStr: toDateString(date),
-        date,
-        isMeeting: true,
-        isSocial: isFourthWednesday(date),
-      }));
+      const evtsByDate = groupEventsByDate(evts);
+      const cols: Column[] = wednesdays.map((date) => {
+        const dateStr = toDateString(date);
+        const { lunchEvent, isSocial, isNoMeeting } = classifyWednesday(date, evtsByDate[dateStr] || []);
+        return {
+          dateStr,
+          date,
+          isMeeting: true,
+          isSocial,
+          isNoMeeting,
+          lunchName: lunchEvent?.event_name,
+        };
+      });
 
       evts.forEach((evt) => {
         const evtDate = new Date(evt.start_date);
@@ -121,6 +129,7 @@ export function Attendance() {
             date: evtDate,
             isMeeting: false,
             isSocial: false,
+            isNoMeeting: false,
             event: evt,
           });
         }
@@ -161,7 +170,7 @@ export function Attendance() {
         supabase
           .schema('p0012_rotary')
           .from('calendar_events')
-          .select('id, event_name, start_date')
+          .select('id, event_name, start_date, category')
           .gte('start_date', windowStartDate.toISOString())
           .lte('start_date', windowEndDate.toISOString())
           .eq('status', 'Active'),
@@ -188,10 +197,11 @@ export function Attendance() {
       });
       setRecords(recordsMap);
 
-      const evts: CalendarEvent[] = (eventsRes.data || []).map((e: { id: string; event_name: string; start_date: string }) => ({
+      const evts: CalendarEvent[] = (eventsRes.data || []).map((e: { id: string; event_name: string; start_date: string; category: string | null }) => ({
         id: e.id,
         event_name: e.event_name,
         start_date: e.start_date,
+        category: e.category,
       }));
       setEvents(evts);
       setColumnList(buildColumns(evts));
@@ -214,6 +224,8 @@ export function Attendance() {
   const getCellStatus = (memberId: string, col: Column): CellStatus => {
     const { dateStr } = col;
     const isActive = isTodayOrPast(col.date);
+
+    if (col.isNoMeeting) return null;
 
     if (isActive) {
       const record = records[dateStr]?.find((r) => r.member_id === memberId);
@@ -344,6 +356,10 @@ export function Attendance() {
     const isActive = isTodayOrPast(col.date);
     const key = `${member.id}-${dateStr}`;
     const isUpdating = updating === key;
+
+    if (col.isNoMeeting) {
+      return <div className="h-full flex items-center justify-center text-gray-400">—</div>;
+    }
 
     if (isUpdating) {
       return (
@@ -535,13 +551,13 @@ export function Attendance() {
                       style={{ minWidth: 130 }}
                     >
                       <div>{formatColumnDate(col.date)}</div>
-                      {col.event && (
+                      {(col.event || col.lunchName) && !col.isNoMeeting && (
                         <div className="text-[10px] font-semibold text-blue-600 truncate max-w-[110px] mx-auto">
-                          ({col.event.event_name})
+                          ({col.event?.event_name ?? col.lunchName})
                         </div>
                       )}
                       <div className="text-[10px] font-normal text-gray-500 mt-0.5">
-                        {col.isSocial ? 'Social' : isTodayOrPast(col.date) ? 'Active' : col.event ? 'RSVP' : 'Plan'}
+                        {col.isNoMeeting ? 'No Meeting' : col.isSocial ? 'Social' : isTodayOrPast(col.date) ? 'Active' : col.event ? 'RSVP' : 'Plan'}
                       </div>
                     </th>
                   ))}
@@ -568,6 +584,16 @@ export function Attendance() {
                     Totals
                   </td>
                   {columnList.map((col) => {
+                    if (col.isNoMeeting) {
+                      return (
+                        <td
+                          key={`total-${col.dateStr}`}
+                          className="border-t-2 border-gray-400 border border-gray-200 px-2 py-3 text-xs text-center text-gray-400"
+                        >
+                          —
+                        </td>
+                      );
+                    }
                     const totals = getColumnTotals(col);
                     return (
                       <td

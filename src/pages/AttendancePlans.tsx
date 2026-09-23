@@ -5,6 +5,7 @@ import { Layout } from '../components/Layout';
 import { BottomNav } from '../components/BottomNav';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { classifyWednesday, defaultAttending, eventDateKey, groupEventsByDate } from '../lib/meetingSchedule';
 
 function getStartWednesday(): Date {
   const now = new Date();
@@ -24,10 +25,6 @@ function generateWednesdays(start: Date, count: number): Date[] {
     result.push(d);
   }
   return result;
-}
-
-function isFourthWednesday(date: Date): boolean {
-  return date.getDay() === 3 && Math.ceil(date.getDate() / 7) === 4;
 }
 
 function toDateString(date: Date): string {
@@ -72,6 +69,7 @@ interface CalendarEvent {
   id: string;
   event_name: string;
   start_date: string;
+  category: string | null;
 }
 
 interface RowItem {
@@ -79,8 +77,14 @@ interface RowItem {
   date: Date;
   isMeeting: boolean;
   isSocial: boolean;
+  isNoMeeting: boolean;
+  // Another event on a meeting Wednesday. Display only: plans are keyed by date, so a
+  // toggle here would overwrite the member's plan for the meeting itself.
+  sharesMeetingDate: boolean;
   event?: CalendarEvent;
 }
+
+const rowKey = (row: RowItem) => row.dateStr + (row.event?.id ?? 'meeting');
 
 export function AttendancePlans() {
   const navigate = useNavigate();
@@ -100,35 +104,46 @@ export function AttendancePlans() {
   const buildRows = useCallback(
     (evts: CalendarEvent[]): RowItem[] => {
       const meetingDateStrs = wednesdays.map(toDateString);
+      const evtsByDate = groupEventsByDate(evts);
 
-      const evtByDate: Record<string, CalendarEvent> = {};
-      evts.forEach((evt) => {
-        const evtDate = new Date(evt.start_date);
-        evtDate.setHours(12, 0, 0, 0);
-        evtByDate[toDateString(evtDate)] = evt;
-      });
-
-      const items: RowItem[] = wednesdays.map((date) => {
+      const items: RowItem[] = [];
+      wednesdays.forEach((date) => {
         const ds = toDateString(date);
-        return {
+        const { lunchEvent, otherEvents, isSocial, isNoMeeting } = classifyWednesday(date, evtsByDate[ds] || []);
+        items.push({
           dateStr: ds,
           date,
           isMeeting: true,
-          isSocial: isFourthWednesday(date),
-          event: evtByDate[ds],
-        };
+          isSocial,
+          isNoMeeting,
+          sharesMeetingDate: false,
+          event: lunchEvent,
+        });
+        otherEvents.forEach((evt) => {
+          items.push({
+            dateStr: ds,
+            date,
+            isMeeting: false,
+            isSocial: false,
+            isNoMeeting: false,
+            sharesMeetingDate: true,
+            event: evt,
+          });
+        });
       });
 
       evts.forEach((evt) => {
-        const evtDate = new Date(evt.start_date);
-        evtDate.setHours(12, 0, 0, 0);
-        const evtDateStr = toDateString(evtDate);
+        const evtDateStr = eventDateKey(evt);
         if (!meetingDateStrs.includes(evtDateStr)) {
+          const evtDate = new Date(evt.start_date);
+          evtDate.setHours(12, 0, 0, 0);
           items.push({
             dateStr: evtDateStr,
             date: evtDate,
             isMeeting: false,
             isSocial: false,
+            isNoMeeting: false,
+            sharesMeetingDate: false,
             event: evt,
           });
         }
@@ -157,7 +172,7 @@ export function AttendancePlans() {
         supabase
           .schema('p0012_rotary')
           .from('calendar_events')
-          .select('id, event_name, start_date')
+          .select('id, event_name, start_date, category')
           .gte('start_date', windowStartDate.toISOString())
           .lte('start_date', windowEndDate.toISOString())
           .eq('status', 'Active'),
@@ -173,10 +188,11 @@ export function AttendancePlans() {
       setPlans(planMap);
 
       const evts: CalendarEvent[] = (eventsRes.data || []).map(
-        (e: { id: string; event_name: string; start_date: string }) => ({
+        (e: { id: string; event_name: string; start_date: string; category: string | null }) => ({
           id: e.id,
           event_name: e.event_name,
           start_date: e.start_date,
+          category: e.category,
         })
       );
       setRows(buildRows(evts));
@@ -193,13 +209,13 @@ export function AttendancePlans() {
   }, [loadPlans]);
 
   const toggleAttendance = async (row: RowItem) => {
-    if (!member) return;
+    if (!member || row.isNoMeeting || row.sharesMeetingDate) return;
     const { dateStr, event } = row;
-    const defaultValue = (row.isMeeting && !row.isSocial) ? true : false;
+    const defaultValue = defaultAttending(row) ?? false;
     const currentValue = plans[dateStr] ?? defaultValue;
     const newValue = !currentValue;
 
-    setToggling(dateStr);
+    setToggling(rowKey(row));
     setPlans((prev) => ({ ...prev, [dateStr]: newValue }));
 
     try {
@@ -286,24 +302,61 @@ export function AttendancePlans() {
           ) : (
             <div className="space-y-3">
               {rows.map((row) => {
-                const { dateStr, date, isMeeting, isSocial, event } = row;
+                const { dateStr, date, isMeeting, isSocial, isNoMeeting, sharesMeetingDate, event } = row;
+                const key = rowKey(row);
                 const past = isPastMeeting(date);
                 const locked = isMeetingLocked(date);
-                const defaultValue = isMeeting ? true : false;
+                const defaultValue = defaultAttending(row) ?? false;
                 const isAttending = plans[dateStr] ?? defaultValue;
-                const isTogglingThis = toggling === dateStr;
+                const isTogglingThis = toggling === key;
+
+                if (isNoMeeting) {
+                  return (
+                    <div
+                      key={key}
+                      className="bg-gray-50 rounded-xl border border-gray-100 px-5 py-4 flex items-center justify-between"
+                    >
+                      <div>
+                        <span className="font-medium text-gray-400">{formatDisplayDate(date)}</span>
+                        <span className="ml-2 text-sm text-gray-400">{event?.event_name ?? 'No Meeting'}</span>
+                      </div>
+                    </div>
+                  );
+                }
+
+                if (sharesMeetingDate) {
+                  return (
+                    <div
+                      key={key}
+                      className="rounded-xl shadow-sm border px-5 py-4 flex items-center justify-between bg-blue-50 border-blue-100"
+                    >
+                      <div>
+                        <span className={`font-medium ${past ? 'text-gray-500' : 'text-gray-800'}`}>
+                          {formatDisplayDate(date)}
+                        </span>
+                        <span className={`ml-2 text-sm font-medium ${past ? 'text-blue-500' : 'text-blue-600'}`}>
+                          ({event?.event_name})
+                        </span>
+                      </div>
+                    </div>
+                  );
+                }
 
                 if (isSocial) {
-                  const isGoing = plans[dateStr] ?? false;
-                  const isTogglingThis2 = toggling === dateStr;
+                  const isGoing = plans[dateStr] ?? defaultValue;
+                  const isTogglingThis2 = isTogglingThis;
+                  const socialName = event && (
+                    <span className="ml-2 text-sm text-gray-500 font-medium">({event.event_name})</span>
+                  );
                   if (past) {
                     return (
                       <div
-                        key={dateStr}
+                        key={key}
                         className="bg-gray-50 rounded-xl border border-gray-100 px-5 py-4 flex items-center justify-between"
                       >
                         <div>
                           <span className="font-medium text-gray-500">{formatDisplayDate(date)}</span>
+                          {socialName}
                           <span className="ml-2 text-xs text-gray-400 italic">Social</span>
                         </div>
                         {isGoing ? (
@@ -319,11 +372,12 @@ export function AttendancePlans() {
                   }
                   return (
                     <div
-                      key={dateStr}
+                      key={key}
                       className="bg-gray-50 rounded-xl border border-gray-200 px-5 py-4 flex items-center justify-between"
                     >
                       <div>
                         <span className="font-medium text-gray-700">{formatDisplayDate(date)}</span>
+                        {socialName}
                         <span className="ml-2 text-xs text-gray-500 italic">Social</span>
                       </div>
                       <button
@@ -350,7 +404,7 @@ export function AttendancePlans() {
                 if (past) {
                   return (
                     <div
-                      key={dateStr}
+                      key={key}
                       className={`rounded-xl shadow-sm border px-5 py-4 flex items-center justify-between ${
                         event ? 'bg-blue-50 border-blue-100' : 'bg-white border-gray-100'
                       }`}
@@ -382,7 +436,7 @@ export function AttendancePlans() {
                 if (locked && isMeeting) {
                   return (
                     <div
-                      key={dateStr}
+                      key={key}
                       className="bg-white rounded-xl shadow-sm border border-gray-100 px-5 py-4 flex items-center justify-between"
                     >
                       <div>
@@ -415,7 +469,7 @@ export function AttendancePlans() {
 
                 return (
                   <div
-                    key={dateStr}
+                    key={key}
                     className={`rounded-xl shadow-sm border px-5 py-4 flex items-center justify-between ${
                       event ? 'bg-blue-50 border-blue-100' : 'bg-white border-gray-100'
                     }`}
