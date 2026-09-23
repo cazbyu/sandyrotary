@@ -8,6 +8,7 @@ import {
   zonedTimeToIso,
   mapPayload,
   planSync,
+  planSurveys,
   findPossibleDuplicates,
 } from './_schedule-mapping.mjs';
 
@@ -54,6 +55,65 @@ async function loadContext(supabase) {
   }
   const settings = Object.fromEntries((data || []).map((s) => [s.key, s.value]));
   return buildContext({ meetingTime: settings.meeting_time, meetingTimezone: settings.meeting_timezone });
+}
+
+const SURVEY_COLUMNS = 'id, event_type, event_date, event_name, reference_id, is_active, opens_at, closes_at, created_at';
+
+/**
+ * One post-meeting survey per lunch meeting (see planSurveys). Never fails the calendar sync:
+ * each write is isolated and problems come back as warnings.
+ */
+async function syncSurveys(supabase, calendarRows, ctx, { dryRun, windowStart }) {
+  const result = { created: 0, updated: 0, warnings: [] };
+  const { data: surveys, error } = await supabase
+    .schema(SCHEMA)
+    .from('post_event_surveys')
+    .select(SURVEY_COLUMNS)
+    .eq('event_type', 'meeting')
+    .gte('event_date', windowStart);
+  if (error) {
+    result.warnings.push(`Surveys not updated: ${error.message}`);
+    return result;
+  }
+
+  const plan = planSurveys(calendarRows, surveys || [], { timeZone: ctx.timeZone });
+  if (plan.skippedDates.length) {
+    result.warnings.push(`Surveys skipped for dates with more than one meeting: ${plan.skippedDates.join(', ')}`);
+  }
+  if (dryRun) {
+    result.created = plan.creates.length;
+    result.updated = plan.adoptions.length + plan.updates.length;
+    return result;
+  }
+
+  for (const row of plan.creates) {
+    // ignoreDuplicates: a concurrent run that already created it is fine (UNIQUE reference_id).
+    const { data, error: e } = await supabase
+      .schema(SCHEMA)
+      .from('post_event_surveys')
+      .upsert(row, { onConflict: 'reference_id', ignoreDuplicates: true })
+      .select('id');
+    if (e) result.warnings.push(`Survey for ${row.event_date} not created: ${e.message}`);
+    else if (data && data.length) result.created++;
+  }
+  for (const { id, changes } of plan.adoptions) {
+    // Only adopt a survey that is still unlinked (another run may have got there first).
+    const { data, error: e } = await supabase
+      .schema(SCHEMA)
+      .from('post_event_surveys')
+      .update(changes)
+      .eq('id', id)
+      .is('reference_id', null)
+      .select('id');
+    if (e) result.warnings.push(`Survey ${id} not linked: ${e.message}`);
+    else if (data && data.length) result.updated++;
+  }
+  for (const { id, changes } of plan.updates) {
+    const { error: e } = await supabase.schema(SCHEMA).from('post_event_surveys').update(changes).eq('id', id);
+    if (e) result.warnings.push(`Survey ${id} not updated: ${e.message}`);
+    else result.updated++;
+  }
+  return result;
 }
 
 function validateBody(body) {
@@ -173,6 +233,16 @@ export default async (req) => {
       finalRows = [...finalRows.filter((r) => r.id !== null), ...insertedRows];
     }
 
+    // 6. Post-meeting surveys (lunch tab only; skipped when the lunch tab is frozen or absent).
+    let surveyResult = { created: 0, updated: 0, warnings: [] };
+    if (tabs.includes('lunch') && !plan.frozenTabs.includes('lunch')) {
+      try {
+        surveyResult = await syncSurveys(supabase, finalRows, ctx, { dryRun, windowStart: SYNC_WINDOW_START });
+      } catch (err) {
+        surveyResult.warnings.push(`Surveys not updated: ${err.message}`);
+      }
+    }
+
     const report = {
       inserted: plan.inserts.length,
       updated: plan.updates.length,
@@ -180,14 +250,17 @@ export default async (req) => {
       skipped,
       possible_duplicates: findPossibleDuplicates(finalRows, ctx.timeZone),
       orphaned: plan.orphaned,
-      warnings: plan.warnings,
+      warnings: [...plan.warnings, ...surveyResult.warnings],
+      surveys_created: surveyResult.created,
+      surveys_updated: surveyResult.updated,
       dry_run: dryRun,
     };
 
     console.log(
       `schedule-sync${dryRun ? ' (dry run)' : ''}: inserted=${report.inserted} updated=${report.updated} ` +
       `unchanged=${report.unchanged} skipped=${skipped.length} orphaned=${plan.orphaned.length} ` +
-      `possible_duplicates=${report.possible_duplicates.length} warnings=${plan.warnings.length}`,
+      `possible_duplicates=${report.possible_duplicates.length} warnings=${report.warnings.length} ` +
+      `surveys_created=${report.surveys_created} surveys_updated=${report.surveys_updated}`,
     );
     return json(200, report);
   } catch (err) {

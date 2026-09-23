@@ -639,6 +639,7 @@ export function planSync(mapped, existingRows, ctx, { tabs = ['lunch', 'service'
     deactivations: deactivations.map((r) => r.id),
     orphaned,
     warnings,
+    frozenTabs: [...frozenTabs],
     finalRows,
   };
 }
@@ -666,4 +667,108 @@ export function findPossibleDuplicates(rows, timeZone = DEFAULT_TIME_ZONE) {
     out.push({ date, tab: 'lunch', categories: [...categories], ids });
   }
   return out.sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// ---------- post-meeting surveys ----------
+
+// Lunch-tab categories that get a post-meeting survey (No Meeting weeks don't).
+export const SURVEY_CATEGORIES = ['Club Meeting', 'Club Event'];
+
+/** closes_at, as the DB generates it: 00:00 in the club's time zone on event_date + 7. */
+export function surveyClosesAt(eventDate, timeZone = DEFAULT_TIME_ZONE) {
+  const [y, m, d] = eventDate.split('-').map(Number);
+  const next = new Date(Date.UTC(y, m - 1, d + 7));
+  return zonedTimeToIso(
+    { y: next.getUTCFullYear(), m: next.getUTCMonth() + 1, d: next.getUTCDate() },
+    { h: 0, m: 0 },
+    timeZone,
+  );
+}
+
+/**
+ * Keep one post-meeting survey per lunch meeting (p0012_rotary.post_event_surveys).
+ * - calendarRows: synced lunch-tab rows after the sync (id, category, status, event_name, start_date);
+ *   rows without an id (dry-run inserts) are ignored.
+ * - surveys: existing event_type 'meeting' surveys (id, event_date, event_name, reference_id, is_active, opens_at).
+ * Rules: an Active Club Meeting / Club Event gets a survey (adopting a leader-made survey with no link on the
+ * same date, else creating one) that opens at the meeting start; a linked survey follows renames and is
+ * deactivated when its row is hidden or becomes No Meeting. Surveys that have closed are history and are
+ * never touched; nothing is created for a meeting whose survey would already be closed. Dates with 2+
+ * qualifying rows are ambiguous and skipped. Never deletes.
+ * Returns { creates: [row], adoptions: [{ id, changes }], updates: [{ id, changes }], skippedDates }.
+ */
+export function planSurveys(calendarRows, surveys, { now = new Date(), timeZone = DEFAULT_TIME_ZONE } = {}) {
+  const nowMs = new Date(now).getTime();
+  const lunchRows = (calendarRows || []).filter(
+    (r) => r.id && tabForCategory(r.category) === 'lunch'
+      && nowMs < new Date(surveyClosesAt(zonedDateString(r.start_date, timeZone), timeZone)).getTime(),
+  );
+  const qualifies = (r) => r.status === 'Active' && SURVEY_CATEGORIES.includes(r.category);
+
+  const perDate = new Map();
+  for (const r of lunchRows.filter(qualifies)) {
+    const date = zonedDateString(r.start_date, timeZone);
+    perDate.set(date, (perDate.get(date) || 0) + 1);
+  }
+  const skippedDates = [...perDate].filter(([, n]) => n > 1).map(([date]) => date).sort();
+
+  const byRef = new Map();
+  const unlinkedByDate = new Map();
+  for (const s of surveys || []) {
+    if (s.reference_id) byRef.set(s.reference_id, s);
+    else {
+      if (!unlinkedByDate.has(s.event_date)) unlinkedByDate.set(s.event_date, []);
+      unlinkedByDate.get(s.event_date).push(s);
+    }
+  }
+  // Prefer an active leader-made survey, then the oldest.
+  for (const list of unlinkedByDate.values()) {
+    list.sort((a, b) => Number(b.is_active) - Number(a.is_active)
+      || String(a.created_at ?? '').localeCompare(String(b.created_at ?? '')));
+  }
+
+  const sameInstant = (a, b) => (!a && !b) || (!!a && !!b && new Date(a).getTime() === new Date(b).getTime());
+  const creates = [];
+  const adoptions = [];
+  const updates = [];
+
+  for (const r of lunchRows) {
+    const date = zonedDateString(r.start_date, timeZone);
+    if (skippedDates.includes(date)) continue;
+    const existing = byRef.get(r.id);
+
+    if (existing) {
+      if (nowMs >= new Date(existing.closes_at ?? surveyClosesAt(existing.event_date, timeZone)).getTime()) continue;
+      const want = qualifies(r)
+        ? { event_name: r.event_name, is_active: true, opens_at: r.start_date }
+        : { is_active: false };
+      const changes = {};
+      if (want.event_name !== undefined && want.event_name !== existing.event_name) changes.event_name = want.event_name;
+      if (want.is_active !== existing.is_active) changes.is_active = want.is_active;
+      if (want.opens_at !== undefined && !sameInstant(want.opens_at, existing.opens_at)) changes.opens_at = want.opens_at;
+      if (Object.keys(changes).length) updates.push({ id: existing.id, changes });
+      continue;
+    }
+    if (!qualifies(r)) continue;
+
+    const leaderMade = unlinkedByDate.get(date);
+    if (leaderMade && leaderMade.length) {
+      const s = leaderMade.shift();
+      adoptions.push({
+        id: s.id,
+        changes: { reference_id: r.id, event_name: r.event_name, is_active: true, opens_at: r.start_date },
+      });
+      continue;
+    }
+    creates.push({
+      event_type: 'meeting',
+      event_date: date,
+      event_name: r.event_name,
+      reference_id: r.id,
+      is_active: true,
+      opens_at: r.start_date,
+    });
+  }
+
+  return { creates, adoptions, updates, skippedDates };
 }

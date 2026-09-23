@@ -43,11 +43,13 @@ Response `200`:
   "possible_duplicates": [ { "date": "2026-08-05", "tab": "lunch", "categories": ["Club Meeting", "No Meeting"], "ids": ["…"] } ],
   "orphaned": [ { "id": "…", "date": "2026-08-05", "event_name": "…" } ],
   "warnings": [],
+  "surveys_created": 0, "surveys_updated": 0,
   "dry_run": true }
 ```
 
 - `orphaned` lists rows **newly hidden in this run** (they vanished from the sheet). A row that stays missing is not listed again, so each disappearance is reported once.
-- `warnings` explains anything the sync refused to do, e.g. a run that would hide most of a tab (see *Hidden rows*).
+- `warnings` explains anything the sync refused to do, e.g. a run that would hide most of a tab (see *Hidden rows*), or a post-meeting survey it could not write.
+- `surveys_created` / `surveys_updated`: post-meeting surveys created, and linked/renamed/(de)activated (see *Post-meeting surveys*).
 
 `401` bad/missing secret · `400` malformed body (with message) · `405` non-POST · `500` misconfiguration or DB error (message, never secrets).
 
@@ -122,6 +124,19 @@ With `dry_run: true` everything runs except the writes; the counts show what *wo
   - For an intended bulk change (e.g. many service rows renamed at once, or a clean-up of past rows), run once with `"allow_bulk_hide": true` in the body.
   - n8n should alert on a non-empty `warnings` array, since the warning repeats every run until someone acts.
 - The app only shows `status = 'Active'` rows (Calendar, My Attendance Plans, admin Attendance).
+
+## Post-meeting surveys
+
+After the calendar writes, the sync keeps one `p0012_rotary.post_event_surveys` row per lunch meeting (`planSurveys` in `_schedule-mapping.mjs`), so members can rate the speaker/program and the meal on *Ideas, Surveys & Suggestions*.
+
+- Every **Active** synced **Club Meeting / Club Event** gets a survey: `event_type='meeting'`, `event_date` = Denver date, `event_name` = the calendar name, `reference_id` = the calendar row id, `is_active=true`, `opens_at` = the meeting start. No Meeting weeks and service/fundraiser rows get none.
+- A leader-made survey on the same date with no `reference_id` (e.g. 2026-09-23) is **adopted** (linked) instead of creating a second one.
+- A linked survey follows renames; it is deactivated when its calendar row is hidden or becomes No Meeting, and reactivated if it comes back. Surveys are never deleted.
+- The open window is set by the database: open from `opens_at` until `closes_at` = 00:00 Denver on `event_date + 7` (end of the following Tuesday). **Closed surveys are history**: the sync never changes them, and never creates a survey for a meeting whose window has already closed.
+- A date with 2+ Active lunch rows is ambiguous: no survey changes for it (listed in `warnings`).
+- Skipped when the lunch tab is frozen by the bad-read guard or absent from the body. `dry_run` reports the counts without writing (new calendar rows in a dry run have no id yet, so their surveys aren't counted).
+- Failures never fail the calendar sync: each survey write is separate and errors come back in `warnings`. `UNIQUE(reference_id)` makes concurrent runs safe (`ON CONFLICT DO NOTHING`).
+- Answers (`post_event_responses`) are never read by the sync; the server key has no grant on them. Leaders see results only through `post_event_results()` (see migration `20260923040000_confidential_meeting_feedback.sql`).
 
 ## Carry-forward
 

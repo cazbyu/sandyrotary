@@ -12,6 +12,8 @@ import {
   zonedTimeToIso,
   zonedDateString,
   parseTimeFromText,
+  planSurveys,
+  surveyClosesAt,
 } from '../_schedule-mapping.mjs';
 
 const ctx = buildContext({ meetingTime: 'Wednesday, 12:15pm - 1:30pm', meetingTimezone: 'America/Denver' });
@@ -568,4 +570,92 @@ test('bad read that changes keys (details column lost): no inserts, no hides, so
   const next = planSync(mapPayload({ service: good }, ctx).mapped, db, ctx, { tabs: ['service'] });
   assert.equal(next.unchanged, 8);
   assert.equal(next.inserts.length + next.updates.length + next.deactivations.length, 0);
+});
+
+// ---------- post-meeting surveys ----------
+
+const NOW = new Date('2026-09-23T17:00:00Z'); // Wed 11:00 MDT, before the 12:15 meeting
+const cal = (over) => ({
+  id: 'cal-0923',
+  category: 'Club Meeting',
+  status: 'Active',
+  event_name: 'Business Meeting',
+  start_date: '2026-09-23T18:15:00Z',
+  ...over,
+});
+const srv = (over) => ({
+  id: 'srv-1',
+  event_type: 'meeting',
+  event_date: '2026-09-23',
+  event_name: 'Weekly Meeting - Wed, Sep 23',
+  reference_id: null,
+  is_active: true,
+  opens_at: null,
+  closes_at: '2026-09-30T06:00:00Z',
+  created_at: '2026-09-20T13:12:00Z',
+  ...over,
+});
+
+test('surveyClosesAt: 00:00 Denver on event_date + 7 (DST-aware)', () => {
+  assert.equal(surveyClosesAt('2026-09-23'), '2026-09-30T06:00:00.000Z');
+  assert.equal(surveyClosesAt('2026-10-28'), '2026-11-04T07:00:00.000Z');
+});
+
+test('surveys: adopt the leader-made survey on the same date instead of creating one', () => {
+  const plan = planSurveys([cal()], [srv()], { now: NOW });
+  assert.deepEqual(plan.creates, []);
+  assert.deepEqual(plan.adoptions, [{
+    id: 'srv-1',
+    changes: { reference_id: 'cal-0923', event_name: 'Business Meeting', is_active: true, opens_at: '2026-09-23T18:15:00Z' },
+  }]);
+});
+
+test('surveys: create one for a meeting with no survey; opens at the meeting start', () => {
+  const plan = planSurveys([cal({ id: 'cal-1007', event_name: 'Mayor Zoltanski', start_date: '2026-10-07T18:15:00Z' })], [], { now: NOW });
+  assert.deepEqual(plan.creates, [{
+    event_type: 'meeting', event_date: '2026-10-07', event_name: 'Mayor Zoltanski',
+    reference_id: 'cal-1007', is_active: true, opens_at: '2026-10-07T18:15:00Z',
+  }]);
+});
+
+test('surveys: a linked survey follows a rename; unchanged when already in step', () => {
+  const linked = srv({ reference_id: 'cal-0923', event_name: 'Business Meeting', opens_at: '2026-09-23T18:15:00Z' });
+  assert.deepEqual(planSurveys([cal()], [linked], { now: NOW }).updates, []);
+  const renamed = planSurveys([cal({ event_name: 'Mayor Zoltanski' })], [linked], { now: NOW });
+  assert.deepEqual(renamed.updates, [{ id: 'srv-1', changes: { event_name: 'Mayor Zoltanski' } }]);
+});
+
+test('surveys: hidden row or No Meeting → linked survey deactivated; back to Active → reactivated', () => {
+  const linked = srv({ reference_id: 'cal-0923', event_name: 'Business Meeting', opens_at: '2026-09-23T18:15:00Z' });
+  assert.deepEqual(planSurveys([cal({ status: 'Inactive' })], [linked], { now: NOW }).updates,
+    [{ id: 'srv-1', changes: { is_active: false } }]);
+  assert.deepEqual(planSurveys([cal({ category: 'No Meeting', event_name: 'No Meeting — Off' })], [linked], { now: NOW }).updates,
+    [{ id: 'srv-1', changes: { is_active: false } }]);
+  assert.deepEqual(planSurveys([cal()], [{ ...linked, is_active: false }], { now: NOW }).updates,
+    [{ id: 'srv-1', changes: { is_active: true } }]);
+});
+
+test('surveys: No Meeting weeks and service rows get no survey', () => {
+  const plan = planSurveys([
+    cal({ id: 'nm', category: 'No Meeting', start_date: '2026-11-25T19:15:00Z' }),
+    cal({ id: 'svc', category: 'Club Service Project', start_date: '2026-10-07T18:00:00Z' }),
+  ], [], { now: NOW });
+  assert.deepEqual(plan.creates, []);
+});
+
+test('surveys: closed surveys are history — nothing created, nothing changed', () => {
+  const past = cal({ id: 'cal-0909', start_date: '2026-09-09T18:15:00Z', event_name: 'Renamed later' });
+  const closed = srv({ id: 'srv-old', event_date: '2026-09-09', reference_id: 'cal-0909', closes_at: '2026-09-16T06:00:00Z' });
+  assert.deepEqual(planSurveys([past], [], { now: NOW }).creates, []);
+  assert.deepEqual(planSurveys([past], [closed], { now: NOW }).updates, []);
+});
+
+test('surveys: a date with two active meetings is skipped', () => {
+  const plan = planSurveys([cal({ id: 'a' }), cal({ id: 'b', event_name: 'Other' })], [], { now: NOW });
+  assert.deepEqual(plan.creates, []);
+  assert.deepEqual(plan.skippedDates, ['2026-09-23']);
+});
+
+test('surveys: dry-run rows without an id are ignored', () => {
+  assert.deepEqual(planSurveys([cal({ id: null })], [], { now: NOW }).creates, []);
 });
