@@ -22,7 +22,7 @@ export function ProfileHub() {
         </div>
 
         <CardGrid>
-          <NavCard to="/my-data" icon={User} label="My Data" />
+          <NavCard to="/my-data" icon={User} label="My Profile" />
           <NavCard to="/attendance-plans" icon={ClipboardCheck} label="My Attendance Plans" />
         </CardGrid>
       </div>

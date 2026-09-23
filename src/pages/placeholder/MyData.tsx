@@ -8,11 +8,34 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 
 interface SocialMedia {
-  id?: string;
+  id: string;
   platform: string;
   url: string;
-  isNew?: boolean;
 }
+
+type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
+
+const AUTOSAVE_DELAY_MS = 1000;
+const SAVED_FADE_MS = 2000;
+const DATE_FIELDS = ['birthday', 'wedding_anniversary'] as const;
+const NAME_FIELDS = ['first_name', 'last_name'] as const;
+type DateField = typeof DATE_FIELDS[number];
+
+// Member-editable columns written by auto-save. Photo and the read-only status block are excluded.
+const SAVE_FIELDS = [
+  'first_name', 'last_name', 'birthday', 'wedding_anniversary',
+  'preferred_phone', 'mobile_phone', 'home_phone', 'office_phone',
+  'preferred_email_type', 'home_email', 'office_email',
+  'home_address_1', 'home_address_2', 'home_address_3', 'home_city', 'home_state',
+  'home_county', 'home_province', 'home_postal_code', 'home_country',
+  'office_address_1', 'office_address_2', 'office_address_3', 'office_city', 'office_state',
+  'office_county', 'office_province', 'office_postal_code', 'office_country',
+  'share_contact_info',
+] as const;
+type SaveField = typeof SAVE_FIELDS[number];
+
+const isCompleteDate = (value: string) =>
+  /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(new Date(`${value}T00:00:00Z`).getTime());
 
 interface FormData {
   first_name: string;
@@ -55,7 +78,8 @@ export function MyData() {
   const navigate = useNavigate();
   const { member } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
+  const [addingSocial, setAddingSocial] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -101,11 +125,131 @@ export function MyData() {
   const [showAddSocial, setShowAddSocial] = useState(false);
   const [newSocial, setNewSocial] = useState({ platform: '', url: '' });
 
+  // Auto-save state lives in refs so debounce timers, blur and unmount all see current values.
+  const formRef = useRef<FormData>(formData);
+  const lastSavedRef = useRef<Partial<Record<SaveField, string | boolean | null>> | null>(null);
+  const clearedDatesRef = useRef<Set<DateField>>(new Set());
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const savedFadeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inFlightRef = useRef<Promise<void> | null>(null);
+  const saveAgainRef = useRef(false);
+  const retryRef = useRef<(() => void) | null>(null);
+  const mountedRef = useRef(true);
+  const memberIdRef = useRef(member?.id);
+  memberIdRef.current = member?.id;
+
   useEffect(() => {
     if (member) {
       loadMemberData();
     }
   }, [member]);
+
+  const showStatus = (status: SaveStatus) => {
+    if (!mountedRef.current) return;
+    if (savedFadeRef.current) clearTimeout(savedFadeRef.current);
+    setSaveStatus(status);
+    if (status === 'saved') {
+      savedFadeRef.current = setTimeout(() => {
+        if (mountedRef.current) setSaveStatus('idle');
+      }, SAVED_FADE_MS);
+    }
+  };
+
+  const failed = (text: string, retry: () => void, error: unknown) => {
+    console.error(text, error);
+    retryRef.current = retry;
+    showStatus('error');
+    if (mountedRef.current) {
+      const detail = (error as { message?: string } | null)?.message;
+      setMessage({ type: 'error', text: detail ? `${text} (${detail})` : text });
+    }
+  };
+
+  /** Fields whose current value differs from the last saved snapshot and passes the guards. */
+  const collectChanges = () => {
+    const saved = lastSavedRef.current;
+    if (!saved || !memberIdRef.current) return {};
+    const form = formRef.current;
+    const changes: Partial<Record<SaveField, string | boolean | null>> = {};
+    for (const field of SAVE_FIELDS) {
+      let value: string | boolean | null = form[field];
+      if ((NAME_FIELDS as readonly string[]).includes(field) && String(value).trim() === '') continue;
+      if ((DATE_FIELDS as readonly string[]).includes(field)) {
+        const date = value as string;
+        if (date === '') {
+          // A date input reads '' while half-typed; only a deliberate clear (on blur) erases it.
+          if (!clearedDatesRef.current.has(field as DateField)) continue;
+          value = null;
+        } else if (!isCompleteDate(date)) {
+          continue;
+        }
+      }
+      if (value !== saved[field]) changes[field] = value;
+    }
+    return changes;
+  };
+
+  /** Save pending member changes. Saves run one at a time; a request during a save queues one more pass. */
+  const flushSave = (): Promise<void> => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+    if (inFlightRef.current) {
+      saveAgainRef.current = true;
+      return inFlightRef.current;
+    }
+    const run = async () => {
+      do {
+        saveAgainRef.current = false;
+        const changes = collectChanges();
+        if (Object.keys(changes).length === 0) break;
+        showStatus('saving');
+        const { error } = await supabase
+          .schema('p0012_rotary')
+          .from('members')
+          .update(changes)
+          .eq('id', memberIdRef.current!);
+        if (error) {
+          failed('Not saved', () => { void flushSave(); }, error);
+          return;
+        }
+        lastSavedRef.current = { ...lastSavedRef.current, ...changes };
+        for (const field of DATE_FIELDS) {
+          if (field in changes) clearedDatesRef.current.delete(field);
+        }
+        if (mountedRef.current) setMessage(null);
+        showStatus('saved');
+      } while (saveAgainRef.current);
+    };
+    inFlightRef.current = run().finally(() => {
+      inFlightRef.current = null;
+    });
+    return inFlightRef.current;
+  };
+
+  const scheduleSave = () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => { void flushSave(); }, AUTOSAVE_DELAY_MS);
+  };
+
+  // Flush on unmount (back button, bottom nav) and when the tab is hidden or closed.
+  useEffect(() => {
+    mountedRef.current = true;
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') void flushSave();
+    };
+    const onUnload = () => { void flushSave(); };
+    document.addEventListener('visibilitychange', onHide);
+    window.addEventListener('pagehide', onUnload);
+    return () => {
+      document.removeEventListener('visibilitychange', onHide);
+      window.removeEventListener('pagehide', onUnload);
+      mountedRef.current = false;
+      if (savedFadeRef.current) clearTimeout(savedFadeRef.current);
+      void flushSave();
+    };
+  }, []);
 
   const loadMemberData = async () => {
     try {
@@ -119,7 +263,7 @@ export function MyData() {
       if (memberError) throw memberError;
 
       if (memberData) {
-        setFormData({
+        const loaded: FormData = {
           first_name: memberData.first_name || '',
           last_name: memberData.last_name || '',
           birthday: memberData.birthday || '',
@@ -154,7 +298,15 @@ export function MyData() {
           member_status: memberData.member_status || '',
           member_title: memberData.member_title || '',
           membership_start_date: memberData.membership_start_date || '',
-        });
+        };
+        formRef.current = loaded;
+        setFormData(loaded);
+        const snapshot: Partial<Record<SaveField, string | boolean | null>> = {};
+        for (const field of SAVE_FIELDS) {
+          const value = loaded[field];
+          snapshot[field] = (DATE_FIELDS as readonly string[]).includes(field) && value === '' ? null : value;
+        }
+        lastSavedRef.current = snapshot;
       }
 
       const { data: socialData, error: socialError } = await supabase
@@ -168,7 +320,7 @@ export function MyData() {
       setSocialMedia(socialData || []);
     } catch (error) {
       console.error('Error loading member data:', error);
-      setMessage({ type: 'error', text: 'Failed to load your data' });
+      setMessage({ type: 'error', text: 'Failed to load your profile' });
     } finally {
       setLoading(false);
     }
@@ -226,108 +378,91 @@ export function MyData() {
     return value;
   };
 
-  const handlePhoneChange = (field: keyof FormData, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: formatPhone(value) }));
+  /** Text fields: debounced save. Toggles/selects pass `immediate` and save right away. */
+  const handleChange = (field: keyof FormData, value: string | boolean, immediate = false) => {
+    formRef.current = { ...formRef.current, [field]: value };
+    setFormData(prev => ({ ...prev, [field]: value }));
+    if ((DATE_FIELDS as readonly string[]).includes(field) && value !== '') {
+      clearedDatesRef.current.delete(field as DateField);
+    }
+    if (immediate) void flushSave();
+    else scheduleSave();
   };
 
-  const handleChange = (field: keyof FormData, value: string | boolean) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+  const handlePhoneChange = (field: keyof FormData, value: string) => {
+    handleChange(field, formatPhone(value));
+  };
+
+  // Any field losing focus saves right away (blur events bubble up to the form container).
+  const handleFieldBlur = () => {
+    void flushSave();
+  };
+
+  // An empty date input on blur is a deliberate clear only if the browser has no half-typed value.
+  const handleDateBlur = (field: DateField, e: React.FocusEvent<HTMLInputElement>) => {
+    if (e.target.value === '' && !e.target.validity.badInput) clearedDatesRef.current.add(field);
+  };
+
+  const addSocialMedia = async (platform: string, url: string) => {
+    setAddingSocial(true);
+    showStatus('saving');
+    const { data, error } = await supabase
+      .schema('p0012_rotary')
+      .from('member_social_media')
+      .insert({ member_id: member!.id, platform, url })
+      .select('id, platform, url')
+      .single();
+    setAddingSocial(false);
+    if (error || !data) {
+      failed('Not saved: social media link', () => { void addSocialMedia(platform, url); }, error);
+      return;
+    }
+    setSocialMedia(prev => [...prev, data as SocialMedia]);
+    setNewSocial({ platform: '', url: '' });
+    setShowAddSocial(false);
+    setMessage(null);
+    showStatus('saved');
   };
 
   const handleAddSocialMedia = () => {
-    if (newSocial.platform && newSocial.url) {
-      setSocialMedia(prev => [...prev, { ...newSocial, isNew: true }]);
-      setNewSocial({ platform: '', url: '' });
-      setShowAddSocial(false);
+    if (newSocial.platform && newSocial.url && !addingSocial) {
+      void addSocialMedia(newSocial.platform, newSocial.url);
     }
   };
 
-  const handleRemoveSocialMedia = (index: number) => {
-    setSocialMedia(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const handleSave = async () => {
-    setSaving(true);
+  const removeSocialMedia = async (social: SocialMedia, index: number) => {
+    setSocialMedia(prev => prev.filter(s => s.id !== social.id));
+    showStatus('saving');
+    const { error } = await supabase
+      .schema('p0012_rotary')
+      .from('member_social_media')
+      .delete()
+      .eq('id', social.id)
+      .eq('member_id', member!.id);
+    if (error) {
+      // Put it back where it was so the screen matches the database.
+      setSocialMedia(prev => {
+        if (prev.some(s => s.id === social.id)) return prev;
+        const next = [...prev];
+        next.splice(Math.min(index, next.length), 0, social);
+        return next;
+      });
+      failed('Not saved: removing social media link', () => { void removeSocialMedia(social, index); }, error);
+      return;
+    }
     setMessage(null);
-
-    try {
-      const { error: updateError } = await supabase
-        .schema('p0012_rotary')
-        .from('members')
-        .update({
-          first_name: formData.first_name,
-          last_name: formData.last_name,
-          birthday: formData.birthday || null,
-          wedding_anniversary: formData.wedding_anniversary || null,
-          preferred_phone: formData.preferred_phone,
-          mobile_phone: formData.mobile_phone,
-          home_phone: formData.home_phone,
-          office_phone: formData.office_phone,
-          preferred_email_type: formData.preferred_email_type,
-          home_email: formData.home_email,
-          office_email: formData.office_email,
-          home_address_1: formData.home_address_1,
-          home_address_2: formData.home_address_2,
-          home_address_3: formData.home_address_3,
-          home_city: formData.home_city,
-          home_state: formData.home_state,
-          home_county: formData.home_county,
-          home_province: formData.home_province,
-          home_postal_code: formData.home_postal_code,
-          home_country: formData.home_country,
-          office_address_1: formData.office_address_1,
-          office_address_2: formData.office_address_2,
-          office_address_3: formData.office_address_3,
-          office_city: formData.office_city,
-          office_state: formData.office_state,
-          office_county: formData.office_county,
-          office_province: formData.office_province,
-          office_postal_code: formData.office_postal_code,
-          office_country: formData.office_country,
-          share_contact_info: formData.share_contact_info,
-        })
-        .eq('id', member!.id);
-
-      if (updateError) throw updateError;
-
-      const existingSocialIds = socialMedia.filter(s => s.id && !s.isNew).map(s => s.id);
-      let deleteQuery = supabase
-        .schema('p0012_rotary')
-        .from('member_social_media')
-        .delete()
-        .eq('member_id', member!.id);
-      if (existingSocialIds.length > 0) {
-        deleteQuery = deleteQuery.not('id', 'in', `(${existingSocialIds.join(',')})`);
-      }
-      const { error: deleteError } = await deleteQuery;
-
-      if (deleteError) throw deleteError;
-
-      const newSocialMedia = socialMedia.filter(s => s.isNew || !s.id);
-      if (newSocialMedia.length > 0) {
-        const { error: insertError } = await supabase
-          .schema('p0012_rotary')
-          .from('member_social_media')
-          .insert(
-            newSocialMedia.map(s => ({
-              member_id: member!.id,
-              platform: s.platform,
-              url: s.url,
-            }))
-          );
-
-        if (insertError) throw insertError;
-      }
-
-      setMessage({ type: 'success', text: 'Your data has been saved successfully!' });
-      setTimeout(() => setMessage(null), 3000);
-    } catch (error) {
-      console.error('Error saving data:', error);
-      setMessage({ type: 'error', text: 'Failed to save your data. Please try again.' });
-    } finally {
-      setSaving(false);
-    }
+    showStatus('saved');
   };
+
+  const handleRetry = () => {
+    const retry = retryRef.current;
+    retryRef.current = null;
+    if (retry) retry();
+    else void flushSave();
+  };
+
+  const firstNameBlank = formData.first_name.trim() === '';
+  const lastNameBlank = formData.last_name.trim() === '';
 
   if (loading) {
     return (
@@ -335,7 +470,7 @@ export function MyData() {
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#1B2A4A]"></div>
-            <p className="mt-4 text-gray-600">Loading your data...</p>
+            <p className="mt-4 text-gray-600">Loading your profile...</p>
           </div>
         </div>
         <BottomNav />
@@ -353,14 +488,19 @@ export function MyData() {
           >
             <ArrowLeft className="w-6 h-6 text-white" />
           </button>
-          <h1 className="text-xl font-bold text-white">My Data</h1>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="px-4 py-2 bg-[#D94F4F] text-white font-semibold rounded-lg hover:bg-[#C44444] disabled:opacity-50"
-          >
-            {saving ? 'Saving...' : 'Save'}
-          </button>
+          <h1 className="text-xl font-bold text-white">My Profile</h1>
+          <div className="min-w-[5.5rem] flex justify-end text-sm font-medium" aria-live="polite">
+            {saveStatus === 'saving' && <span className="text-white/80">Saving…</span>}
+            {saveStatus === 'saved' && <span className="text-white">Saved ✓</span>}
+            {saveStatus === 'error' && (
+              <button
+                onClick={handleRetry}
+                className="px-3 py-1.5 bg-[#D94F4F] text-white font-semibold rounded-lg hover:bg-[#C44444]"
+              >
+                Not saved — Retry
+              </button>
+            )}
+          </div>
         </div>
 
         {message && (
@@ -375,7 +515,7 @@ export function MyData() {
           </div>
         )}
 
-        <div className="p-4">
+        <div className="p-4" onBlur={handleFieldBlur}>
           <div className="bg-white rounded-2xl p-6 mb-4 flex flex-col items-center">
             <div className="relative">
               <div className="w-28 h-28 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
@@ -420,6 +560,7 @@ export function MyData() {
                   onChange={(e) => handleChange('first_name', e.target.value)}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#D94F4F] focus:border-transparent"
                 />
+                {firstNameBlank && <p className="mt-1 text-sm text-red-600">Name can't be blank.</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-600 mb-1">Last Name</label>
@@ -429,6 +570,7 @@ export function MyData() {
                   onChange={(e) => handleChange('last_name', e.target.value)}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#D94F4F] focus:border-transparent"
                 />
+                {lastNameBlank && <p className="mt-1 text-sm text-red-600">Name can't be blank.</p>}
               </div>
 
               <div className="bg-gray-100 p-3 rounded-lg space-y-2">
@@ -454,6 +596,7 @@ export function MyData() {
                   type="date"
                   value={formData.birthday}
                   onChange={(e) => handleChange('birthday', e.target.value)}
+                  onBlur={(e) => handleDateBlur('birthday', e)}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#D94F4F] focus:border-transparent"
                 />
               </div>
@@ -463,6 +606,7 @@ export function MyData() {
                   type="date"
                   value={formData.wedding_anniversary}
                   onChange={(e) => handleChange('wedding_anniversary', e.target.value)}
+                  onBlur={(e) => handleDateBlur('wedding_anniversary', e)}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#D94F4F] focus:border-transparent"
                 />
               </div>
@@ -520,7 +664,7 @@ export function MyData() {
                 <label className="block text-sm font-medium text-gray-600 mb-1">Preferred Email</label>
                 <select
                   value={formData.preferred_email_type}
-                  onChange={(e) => handleChange('preferred_email_type', e.target.value)}
+                  onChange={(e) => handleChange('preferred_email_type', e.target.value, true)}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#D94F4F] focus:border-transparent"
                 >
                   <option value="home">Home</option>
@@ -701,13 +845,13 @@ export function MyData() {
           <AccordionSection title="Social Media" icon={Share2}>
             <div className="space-y-3">
               {socialMedia.map((social, index) => (
-                <div key={index} className="flex items-center gap-3 bg-white p-3 rounded-lg">
+                <div key={social.id} className="flex items-center gap-3 bg-white p-3 rounded-lg">
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-gray-800">{social.platform}</div>
                     <div className="text-sm text-gray-600 truncate">{social.url}</div>
                   </div>
                   <button
-                    onClick={() => handleRemoveSocialMedia(index)}
+                    onClick={() => { void removeSocialMedia(social, index); }}
                     className="w-8 h-8 flex items-center justify-center rounded-full bg-red-100 text-red-600 hover:bg-red-200 shrink-0"
                   >
                     <X className="w-4 h-4" />
@@ -744,9 +888,10 @@ export function MyData() {
                   <div className="flex gap-2">
                     <button
                       onClick={handleAddSocialMedia}
-                      className="flex-1 py-2 bg-[#D94F4F] text-white font-semibold rounded-lg hover:bg-[#C44444]"
+                      disabled={addingSocial}
+                      className="flex-1 py-2 bg-[#D94F4F] text-white font-semibold rounded-lg hover:bg-[#C44444] disabled:opacity-50"
                     >
-                      Add
+                      {addingSocial ? 'Adding…' : 'Add'}
                     </button>
                     <button
                       onClick={() => {
@@ -773,7 +918,7 @@ export function MyData() {
           <div className="bg-white rounded-lg p-4 flex items-center justify-between">
             <span className="text-gray-800 font-medium">Allow other users to share your digits?</span>
             <button
-              onClick={() => handleChange('share_contact_info', !formData.share_contact_info)}
+              onClick={() => handleChange('share_contact_info', !formRef.current.share_contact_info, true)}
               className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${
                 formData.share_contact_info ? 'bg-[#38A169]' : 'bg-gray-300'
               }`}

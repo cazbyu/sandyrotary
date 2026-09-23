@@ -302,7 +302,7 @@ export function Settings() {
             onClick={() => navigate('/my-data')}
             className="w-full text-[#D94F4F] hover:underline text-sm font-medium text-left"
           >
-            Edit My Data →
+            Edit My Profile →
           </button>
         </div>
 
