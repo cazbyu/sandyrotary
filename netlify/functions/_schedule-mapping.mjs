@@ -243,7 +243,10 @@ export function mapLunchRow(rawRow, ctx = buildContext()) {
     eventName = `No Meeting — ${program}`;
     category = 'No Meeting';
   } else if (/^social meeting/i.test(program)) {
+    // Socials are special events (light blue on the Calendar). The app still detects
+    // them by event_name, so attendance defaults don't depend on this category.
     eventName = program;
+    category = 'Club Event';
     venueName = locationCaterer;
   } else if (program.toLowerCase() === 'business meeting') {
     eventName = 'Business Meeting';
@@ -260,9 +263,8 @@ export function mapLunchRow(rawRow, ctx = buildContext()) {
     caterer = locationCaterer;
   }
 
-  const hostMember = clean(row.host_member);
+  // host_member ("who arranged the speaker") is internal to the board and is not synced.
   const descriptionParts = [
-    hostMember && `Speaker arranged by: ${hostMember}`,
     clean(row.notes),
     boardCell && !isBoardMeeting ? boardCell : null,
   ].filter(Boolean);

@@ -6,6 +6,40 @@ import { BottomNav } from '../../components/BottomNav';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { isPastDeadline, formatDeadline } from '../../lib/attendanceUtils';
+import { classifyWednesday, defaultAttending, eventDateKey, groupEventsByDate, isLunchEvent } from '../../lib/meetingSchedule';
+
+// One style per category for the date box, card border and category tag.
+// Every date box / tag pairing meets WCAG AA (4.5:1) for its small bold text.
+const CATEGORY_STYLES: Record<string, { box: string; border: string; tag: string }> = {
+  'Club Meeting': {
+    box: 'bg-[#1B2A4A] text-white',
+    border: 'border-transparent',
+    tag: 'bg-[#1B2A4A] text-white',
+  },
+  'Club Service Project': {
+    box: 'bg-[#C44444] text-white',
+    border: 'border-[#C44444]',
+    tag: 'bg-[#C44444] text-white',
+  },
+  'Club FundRaiser': {
+    box: 'bg-[#15803D] text-white',
+    border: 'border-[#15803D]',
+    tag: 'bg-[#15803D] text-white',
+  },
+  'Club Event': {
+    box: 'bg-[#BAE6FD] text-[#1B2A4A]',
+    border: 'border-[#BAE6FD]',
+    tag: 'bg-[#BAE6FD] text-[#1B2A4A]',
+  },
+  'No Meeting': {
+    box: 'bg-[#6B7280] text-white',
+    border: 'border-[#6B7280]',
+    tag: 'bg-[#6B7280] text-white',
+  },
+};
+const DEFAULT_STYLE = { box: 'bg-[#1B2A4A] text-white', border: 'border-transparent', tag: 'bg-gray-500 text-white' };
+
+const categoryStyle = (category: string) => CATEGORY_STYLES[category] ?? DEFAULT_STYLE;
 
 interface CalendarEvent {
   id: string;
@@ -34,7 +68,7 @@ interface AttendanceRecord {
 
 export function CalendarPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, member } = useAuth();
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'events' | 'google'>('events');
   const [events, setEvents] = useState<CalendarEvent[]>([]);
@@ -42,10 +76,36 @@ export function CalendarPage() {
   const [googleCalendarId, setGoogleCalendarId] = useState('');
   const [attendanceRecords, setAttendanceRecords] = useState<Record<string, AttendanceRecord>>({});
   const [rsvpDeadlineDays, setRsvpDeadlineDays] = useState(5);
+  // attendance_plans for the signed-in member, keyed by meeting_date (read-only here).
+  const [plans, setPlans] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     loadCalendarData();
   }, []);
+
+  useEffect(() => {
+    if (!member || events.length === 0) return;
+    const first = eventDateKey(events[0]);
+    const last = eventDateKey(events[events.length - 1]);
+    supabase
+      .schema('p0012_rotary')
+      .from('attendance_plans')
+      .select('meeting_date, is_attending')
+      .eq('member_id', member.id)
+      .gte('meeting_date', first)
+      .lte('meeting_date', last)
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('Error loading attendance plans:', error);
+          return;
+        }
+        const planMap: Record<string, boolean> = {};
+        (data || []).forEach((p: { meeting_date: string; is_attending: boolean }) => {
+          planMap[p.meeting_date] = p.is_attending;
+        });
+        setPlans(planMap);
+      });
+  }, [member?.id, events]);
 
   const loadCalendarData = async () => {
     try {
@@ -135,22 +195,32 @@ export function CalendarPage() {
     }
   };
 
-  const getCategoryColor = (category: string) => {
-    switch (category) {
-      case 'Club Meeting':
-        return 'bg-[#1B2A4A] text-white';
-      case 'Club Event':
-        return 'bg-blue-500 text-white';
-      case 'Club FundRaiser':
-        return 'bg-green-500 text-white';
-      case 'Club Service Project':
-        return 'bg-[#D94F4F] text-white';
-      case 'No Meeting':
-        return 'bg-gray-200 text-gray-600';
-      default:
-        return 'bg-gray-500 text-white';
+  /**
+   * Event ids the member plans to attend, using the same rule as My Attendance Plans:
+   * the Wednesday lunch event reads plans[date] ?? defaultAttending; a lunch-type event on
+   * another day is a non-meeting row there (default not attending). No Meeting and
+   * service/fundraiser events never get a checkmark.
+   */
+  const attendingEventIds = (() => {
+    const ids = new Set<string>();
+    const byDate = groupEventsByDate(events);
+    for (const [dateKey, dayEvents] of Object.entries(byDate)) {
+      const date = new Date(dayEvents[0].start_date);
+      date.setHours(12, 0, 0, 0);
+      const plan = plans[dateKey];
+      if (date.getDay() === 3) {
+        const { lunchEvent, isSocial, isNoMeeting } = classifyWednesday(date, dayEvents);
+        if (!lunchEvent || isNoMeeting) continue;
+        if (plan ?? defaultAttending({ isMeeting: true, isSocial, isNoMeeting })) ids.add(lunchEvent.id);
+      } else {
+        for (const evt of dayEvents) {
+          if (!isLunchEvent(evt) || evt.category === 'No Meeting') continue;
+          if (plan ?? defaultAttending({ isMeeting: false, isSocial: false })) ids.add(evt.id);
+        }
+      }
     }
-  };
+    return ids;
+  })();
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -238,17 +308,18 @@ export function CalendarPage() {
                 {events.map((event) => {
                   const { month, day } = formatDate(event.start_date);
                   const isExpanded = expandedEventId === event.id;
+                  const style = categoryStyle(event.category);
 
                   return (
                     <div
                       key={event.id}
-                      className="bg-white rounded-xl shadow-md overflow-hidden transition-all"
+                      className={`bg-white rounded-xl shadow-md overflow-hidden transition-all border-2 ${style.border}`}
                     >
                       <button
                         onClick={() => toggleEventExpansion(event.id)}
                         className="w-full p-4 flex gap-4 items-start hover:bg-gray-50 transition-colors"
                       >
-                        <div className="flex-shrink-0 w-16 h-16 bg-[#1B2A4A] rounded-lg flex flex-col items-center justify-center text-white">
+                        <div className={`flex-shrink-0 w-16 h-16 rounded-lg flex flex-col items-center justify-center ${style.box}`}>
                           <span className="text-xs font-semibold uppercase">{month}</span>
                           <span className="text-2xl font-bold">{day}</span>
                         </div>
@@ -256,12 +327,15 @@ export function CalendarPage() {
                         <div className="flex-1 text-left">
                           <h3 className="font-bold text-gray-800 text-lg mb-1">{event.event_name}</h3>
                           <span
-                            className={`inline-block px-2 py-1 rounded-full text-xs font-semibold mb-2 ${getCategoryColor(
-                              event.category
-                            )}`}
+                            className={`inline-block px-2 py-1 rounded-full text-xs font-semibold mb-2 ${style.tag}`}
                           >
                             {event.category}
                           </span>
+                          {attendingEventIds.has(event.id) && (
+                            <span className="inline-block ml-2 px-2 py-1 rounded-full text-xs font-semibold mb-2 bg-green-100 text-green-800">
+                              ✓ Attending
+                            </span>
+                          )}
                           <p className="text-sm text-gray-600">
                             {formatTimeFromTimestamp(event.start_date)}
                             {event.end_date && ` - ${formatTimeFromTimestamp(event.end_date)}`}

@@ -56,10 +56,10 @@ test('"Mayor Zoltanski" → event_name and speaker_topic are the program text', 
   assert.equal(record.category, 'Club Meeting');
 });
 
-test('"Social Meeting at Simply Thai" → Club Meeting at venue', () => {
+test('"Social Meeting at Simply Thai" → Club Event at venue', () => {
   const { record } = lunch('Social Meeting at Simply Thai', { location_caterer: 'Simply Thai' });
   assert.equal(record.event_name, 'Social Meeting at Simply Thai');
-  assert.equal(record.category, 'Club Meeting');
+  assert.equal(record.category, 'Club Event');
   assert.equal(record.venue_name, 'Simply Thai');
   assert.equal(record.caterer, null);
 });
@@ -95,7 +95,19 @@ test('board_meeting note → false, note in description', () => {
   const note = '* we cannot get into the room this day until 12:05';
   const { record } = lunch('Wade Williams - nuclear energy', { host_member: 'Susan/Paul/Charisse', notes: 'Bring badges', board_meeting: note });
   assert.equal(record.is_board_meeting, false);
-  assert.equal(record.description, `Speaker arranged by: Susan/Paul/Charisse · Bring badges · ${note}`);
+  assert.equal(record.description, `Bring badges · ${note}`);
+});
+
+test('8/5 row: host_member is not synced; description is just the board note', () => {
+  const note = '* we cannot get into the room this day until 12:05';
+  const { record } = lunch('Wade Williams - nuclear energy', { host_member: 'Susan/Paul/Charisse', board_meeting: note });
+  assert.equal(record.description, note);
+  assert.ok(!/arranged by/i.test(record.description));
+});
+
+test('"Business Meeting" stays Club Meeting; socials move to Club Event', () => {
+  assert.equal(lunch('Business Meeting').record.category, 'Club Meeting');
+  assert.equal(lunch('social meeting at Porter\'s').record.category, 'Club Event');
 });
 
 test('board_meeting "-" → false, nothing added', () => {

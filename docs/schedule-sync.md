@@ -63,7 +63,7 @@ With `dry_run: true` everything runs except the writes; the counts show what *wo
 |---|---|---|---|
 | blank | `Weekly Club Meeting` | Club Meeting | — |
 | matches `/^off\b/i` | `No Meeting — <program>` | **No Meeting** | no caterer, no venue |
-| starts with `Social Meeting` | program text | Club Meeting | `venue_name` = location_caterer |
+| starts with `Social Meeting` | program text | **Club Event** (special event; the app detects socials by `event_name`) | `venue_name` = location_caterer |
 | equals `Business Meeting` | `Business Meeting` | Club Meeting | `caterer` = location_caterer |
 | contains a `SPECIAL_EVENTS` keyword | program text | Club Event | `venue_name` = location_caterer |
 | anything else (speaker line) | program text (trimmed) | Club Meeting | `speaker_topic` = full program text; `caterer` = location_caterer |
@@ -72,7 +72,7 @@ With `dry_run: true` everything runs except the writes; the counts show what *wo
 
 - Times: `meeting_time` from club_settings (12:15–13:30).
 - `is_board_meeting` = board_meeting cell is `x` (case-insensitive). Any other text is a note.
-- `description` = non-blank parts joined with ` · `: `Speaker arranged by: <host_member>`, `<notes>`, board_meeting text (if not blank and not `x`).
+- `description` = non-blank parts joined with ` · `: `<notes>`, board_meeting text (if not blank and not `x`). `host_member` is not synced (it's internal to the board).
 - Speaker text is the event title, so Club Events and My Attendance Plans both show the speaker (both display `event_name`). `speaker_name` stays NULL.
 - Speaker text is stored **whole** in `event_name` and `speaker_topic`; it is never split into name/topic (the sheet is inconsistent: "Wade Williams - nuclear energy" vs "CPR training - Jen Gerrard").
 
