@@ -254,6 +254,8 @@ export function mapLunchRow(rawRow, ctx = buildContext()) {
     venueName = locationCaterer;
   } else {
     // Speaker line is stored whole; names/topics are too inconsistent to split.
+    // It is also the title, so Club Events and My Attendance Plans show the speaker.
+    eventName = program;
     speakerTopic = program;
     caterer = locationCaterer;
   }
@@ -366,6 +368,17 @@ export function mapPayload({ lunch = [], service = [] }, ctx) {
 }
 
 /**
+ * Key used to pair payload rows with DB rows. There is one lunch-tab row per Wednesday,
+ * so lunch rows match on date alone (a rename or category change updates in place).
+ * Several service rows can share a date, so they keep the full (date, category, name) key.
+ */
+function planKey(tab, record, timeZone) {
+  return tab === 'lunch'
+    ? `lunch|${zonedDateString(record.start_date, timeZone)}`
+    : `service|${matchKey(record, timeZone)}`;
+}
+
+/**
  * Decide inserts/updates against existing rows.
  * Only rows with sync_source = 'google-sheet' dated on/after the window are considered;
  * anything else passed in is ignored (defence in depth — the query filters too).
@@ -378,9 +391,16 @@ export function planSync(mapped, existingRows, ctx) {
 
   const byKey = new Map();
   for (const row of candidates) {
-    const key = matchKey(row, tz);
+    const key = planKey(tabForCategory(row.category), row, tz);
     if (!byKey.has(key)) byKey.set(key, []);
     byKey.get(key).push(row);
+  }
+
+  // 2+ synced lunch-type rows on one date: ambiguous, so none are updated or orphaned.
+  // They stay in finalRows and surface in possible_duplicates.
+  const heldIds = new Set();
+  for (const [key, rows] of byKey) {
+    if (key.startsWith('lunch|') && rows.length > 1) rows.forEach((r) => heldIds.add(r.id));
   }
 
   const inserts = [];
@@ -390,7 +410,8 @@ export function planSync(mapped, existingRows, ctx) {
   const finalRows = []; // post-sync view of synced rows, for duplicate detection
 
   for (const { tab, record } of mapped) {
-    const pool = byKey.get(matchKey(record, tz));
+    const pool = byKey.get(planKey(tab, record, tz));
+    if (pool && pool.some((r) => heldIds.has(r.id))) continue;
     const existing = pool && pool.shift();
     if (!existing) {
       inserts.push({ tab, record });
@@ -408,7 +429,7 @@ export function planSync(mapped, existingRows, ctx) {
   }
 
   const orphaned = candidates
-    .filter((r) => !matchedIds.has(r.id))
+    .filter((r) => !matchedIds.has(r.id) && !heldIds.has(r.id))
     .map((r) => ({ id: r.id, date: zonedDateString(r.start_date, tz), event_name: r.event_name }));
 
   for (const r of candidates) {

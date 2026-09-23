@@ -66,14 +66,15 @@ With `dry_run: true` everything runs except the writes; the counts show what *wo
 | starts with `Social Meeting` | program text | Club Meeting | `venue_name` = location_caterer |
 | equals `Business Meeting` | `Business Meeting` | Club Meeting | `caterer` = location_caterer |
 | contains a `SPECIAL_EVENTS` keyword | program text | Club Event | `venue_name` = location_caterer |
-| anything else (speaker line) | `Weekly Club Meeting` | Club Meeting | `speaker_topic` = full program text; `caterer` = location_caterer |
+| anything else (speaker line) | program text (trimmed) | Club Meeting | `speaker_topic` = full program text; `caterer` = location_caterer |
 
 `SPECIAL_EVENTS`: Christmas Party, Initiation, Rotary Day at the Legislature, Tour of the Utah Museum, Spring Break.
 
 - Times: `meeting_time` from club_settings (12:15–13:30).
 - `is_board_meeting` = board_meeting cell is `x` (case-insensitive). Any other text is a note.
 - `description` = non-blank parts joined with ` · `: `Speaker arranged by: <host_member>`, `<notes>`, board_meeting text (if not blank and not `x`).
-- Speaker text is stored **whole** in `speaker_topic`; it is never split into name/topic (the sheet is inconsistent: "Wade Williams - nuclear energy" vs "CPR training - Jen Gerrard").
+- Speaker text is the event title, so Club Events and My Attendance Plans both show the speaker (both display `event_name`). `speaker_name` stays NULL.
+- Speaker text is stored **whole** in `event_name` and `speaker_topic`; it is never split into name/topic (the sheet is inconsistent: "Wade Williams - nuclear energy" vs "CPR training - Jen Gerrard").
 
 ## Service tab
 
@@ -85,10 +86,13 @@ With `dry_run: true` everything runs except the writes; the counts show what *wo
 ## Matching and field ownership
 
 - Only rows with `sync_source = 'google-sheet'` dated on/after 2026-07-01 are ever read, updated, or reported. Manual rows (`sync_source` NULL) are never touched.
-- Match key: (Denver calendar date of `start_date`, `category`, `event_name`). No DB unique index — matching is done in code. Two payload rows with the same key → the second is skipped (`duplicate in payload`).
+- **Lunch-tab match key: Denver calendar date** of `start_date` alone, against synced lunch-type rows (any category except `Club Service Project` / `Club FundRaiser`). There is one lunch row per Wednesday, so renames and category changes (blank → speaker, speaker → different speaker, meeting → No Meeting) update the row in place.
+- If 2+ synced lunch-type rows already exist on one date, none of them is updated or orphaned, the incoming row for that date is not written, and the group is reported in `possible_duplicates`.
+- **Service-tab match key:** (Denver date, `category`, `event_name`), because several projects can share a date.
+- No DB unique index — matching is done in code. Two payload rows with the same (date, category, event_name) → the second is skipped (`duplicate in payload`).
 - **Sync-owned fields** (updated on match): `event_name, category, status, description, speaker_topic, caterer, venue_name, is_board_meeting, start_date, end_date`. No differences → counted `unchanged`.
 - **App-owned, never touched by the sync:** `id, speaker_name, speaker_bio, enable_rsvp` (set false on insert only), `created_by, google_calendar_id`, and all RSVP/attendance/role tables.
-- Because `event_name` is part of the key, renaming a row in the sheet (e.g. adding a program to a blank week, which changes `Weekly Club Meeting` → `Business Meeting`) inserts a new row and reports the old one as `orphaned`. A leader decides what to do with orphans; the sync never deletes.
+- Orphans: a synced lunch-type row is `orphaned` only when its date no longer appears in the lunch payload. For service rows `event_name` is part of the key, so renaming a service row inserts a new row and reports the old one as `orphaned`. A leader decides what to do with orphans; the sync never deletes.
 - `possible_duplicates`: 2+ synced **lunch-tab** rows on the same Denver date, any category (one lunch event per date is the real rule). Service-tab rows are never flagged — several projects often share a month-only placeholder date. DB rows are assigned a tab by category (`Club Service Project` / `Club FundRaiser` = service; everything else = lunch).
 
 ## Carry-forward

@@ -34,9 +34,9 @@ test('"off for the 24th of July" → No Meeting', () => {
   assert.equal(record.event_name, 'No Meeting — off for the 24th of July');
 });
 
-test('"Wade Williams - nuclear energy" → weekly meeting, whole text in speaker_topic', () => {
+test('"Wade Williams - nuclear energy" → whole text is event_name and speaker_topic', () => {
   const { record } = lunch('Wade Williams - nuclear energy');
-  assert.equal(record.event_name, 'Weekly Club Meeting');
+  assert.equal(record.event_name, 'Wade Williams - nuclear energy');
   assert.equal(record.category, 'Club Meeting');
   assert.equal(record.speaker_topic, 'Wade Williams - nuclear energy');
   assert.equal(record.caterer, 'Catering by Bryce');
@@ -45,8 +45,15 @@ test('"Wade Williams - nuclear energy" → weekly meeting, whole text in speaker
 
 test('"CPR training - Jen Gerrard" → same pattern, no split', () => {
   const { record } = lunch('CPR training - Jen Gerrard');
-  assert.equal(record.event_name, 'Weekly Club Meeting');
+  assert.equal(record.event_name, 'CPR training - Jen Gerrard');
   assert.equal(record.speaker_topic, 'CPR training - Jen Gerrard');
+});
+
+test('"Mayor Zoltanski" → event_name and speaker_topic are the program text', () => {
+  const { record } = lunch('  Mayor Zoltanski ');
+  assert.equal(record.event_name, 'Mayor Zoltanski');
+  assert.equal(record.speaker_topic, 'Mayor Zoltanski');
+  assert.equal(record.category, 'Club Meeting');
 });
 
 test('"Social Meeting at Simply Thai" → Club Meeting at venue', () => {
@@ -222,6 +229,61 @@ test('matcher: synced rows before the window are ignored', () => {
   const old = synced({ id: 'old', start_date: '2026-06-24T18:15:00Z' });
   const plan = planSync([], [old], ctx);
   assert.equal(plan.orphaned.length, 0);
+});
+
+// ---------- v2.2: lunch rows matched by date only ----------
+
+const weekly1007 = (over) => synced({
+  id: 'weekly-1007',
+  event_name: 'Weekly Club Meeting',
+  caterer: null,
+  start_date: '2026-10-07T18:15:00Z',
+  end_date: '2026-10-07T19:30:00Z',
+  ...over,
+});
+
+test('matcher: "Weekly Club Meeting" → "Mayor Zoltanski" on the same date is updated in place', () => {
+  const { mapped } = mapPayload({ lunch: [{ date: '10/7/2026', program: 'Mayor Zoltanski' }] }, ctx);
+  const plan = planSync(mapped, [weekly1007()], ctx);
+  assert.equal(plan.inserts.length, 0);
+  assert.deepEqual(plan.orphaned, []);
+  assert.equal(plan.updates.length, 1);
+  assert.equal(plan.updates[0].id, 'weekly-1007');
+  assert.deepEqual(plan.updates[0].changes, { event_name: 'Mayor Zoltanski', speaker_topic: 'Mayor Zoltanski' });
+});
+
+test('matcher: "Weekly Club Meeting" → "Off for Thanksgiving" updates category to No Meeting', () => {
+  const { mapped } = mapPayload({ lunch: [{ date: '10/7/2026', program: 'Off for Thanksgiving' }] }, ctx);
+  const plan = planSync(mapped, [weekly1007()], ctx);
+  assert.equal(plan.inserts.length, 0);
+  assert.deepEqual(plan.orphaned, []);
+  assert.equal(plan.updates.length, 1);
+  assert.equal(plan.updates[0].changes.category, 'No Meeting');
+  assert.equal(plan.updates[0].changes.event_name, 'No Meeting — Off for Thanksgiving');
+});
+
+test('matcher: 2 service rows on the same date with different names → both kept, no duplicate flag', () => {
+  const service = [
+    { date: '10/10/2026', organization: 'Utah Food Bank', details: 'Mobile Pantry' },
+    { date: '10/10/2026', organization: 'Sandy Rotary', details: 'Orange Fundraiser' },
+  ];
+  const { mapped } = mapPayload({ service }, ctx);
+  const existing = mapped.map(({ record }, i) => ({ id: `svc-${i}`, ...record }));
+  const plan = planSync(mapped, existing, ctx);
+  assert.equal(plan.unchanged, 2);
+  assert.equal(plan.inserts.length + plan.updates.length + plan.orphaned.length, 0);
+  assert.deepEqual(findPossibleDuplicates(plan.finalRows, ctx.timeZone), []);
+});
+
+test('matcher: 2 existing synced lunch-type rows on one date → reported, neither updated', () => {
+  const { mapped } = mapPayload({ lunch: [{ date: '10/7/2026', program: 'Mayor Zoltanski' }] }, ctx);
+  const existing = [weekly1007({ id: 'x' }), weekly1007({ id: 'y', event_name: 'No Meeting — Off', category: 'No Meeting' })];
+  const plan = planSync(mapped, existing, ctx);
+  assert.equal(plan.inserts.length + plan.updates.length, 0);
+  assert.deepEqual(plan.orphaned, []);
+  assert.deepEqual(findPossibleDuplicates(plan.finalRows, ctx.timeZone), [
+    { date: '2026-10-07', tab: 'lunch', categories: ['Club Meeting', 'No Meeting'], ids: ['x', 'y'] },
+  ]);
 });
 
 test('payload duplicates are skipped', () => {
