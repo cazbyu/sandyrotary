@@ -18,6 +18,7 @@ import { InsightDashboardCard } from '../components/admin/InsightDashboardCard';
 import { GrowthPipelineCard } from '../components/admin/GrowthPipelineCard';
 import { CampaignHubCard } from '../components/admin/CampaignHubCard';
 import { SelfieApprovalCard } from '../components/admin/SelfieApprovalCard';
+import { PostEventSurvey } from '../components/home/PostEventSurvey';
 
 export function Home() {
   const { isAdmin, isLeader } = useAuth();
@@ -87,11 +88,14 @@ export function Home() {
         )}
 
         {activeTab === 'home' && (
-          <CardGrid>
-            <NavCard to="/profile-hub" icon={User} label="My Profile & Attendance" />
-            <NavCard to="/club-hub" icon={Building2} label="Club Hub" />
-            <NavCard to="/connect-grow" icon={Users} label="Connect & Grow" />
-          </CardGrid>
+          <>
+            <PostEventSurvey />
+            <CardGrid>
+              <NavCard to="/profile-hub" icon={User} label="My Profile & Attendance" />
+              <NavCard to="/club-hub" icon={Building2} label="Club Hub" />
+              <NavCard to="/connect-grow" icon={Users} label="Connect & Grow" />
+            </CardGrid>
+          </>
         )}
 
         {activeTab === 'admin' && isLeader && (

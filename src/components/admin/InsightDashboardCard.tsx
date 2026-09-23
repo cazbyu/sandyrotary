@@ -224,7 +224,8 @@ export function InsightDashboardCard() {
                   </p>
                 ) : !results.results_visible ? (
                   <p className="text-sm text-gray-600 bg-gray-50 rounded-lg p-3 mb-4">
-                    {results.count} {results.count === 1 ? 'response' : 'responses'}. Results appear after 3.
+                    {results.count} {results.count === 1 ? 'response' : 'responses'}. Results appear after{' '}
+                    {results.min_responses} answers without a name (not counting yours).
                   </p>
                 ) : (
                   <>
@@ -281,10 +282,15 @@ export function InsightDashboardCard() {
                                 .join('')}`
                             : 'A member'}
                         </p>
-                        <p className="text-sm text-gray-800 leading-relaxed mb-2">{c.text}</p>
+                        {c.text ? (
+                          <p className="text-sm text-gray-800 leading-relaxed mb-2">{c.text}</p>
+                        ) : (
+                          <p className="text-sm text-gray-400 italic">Rated, no comment</p>
+                        )}
+                        {c.text && (
                         <div className="flex gap-2">
                           <button
-                            onClick={() => handleAddToIdeaJar(c.text, i)}
+                            onClick={() => handleAddToIdeaJar(c.text as string, i)}
                             disabled={savingIdea === i}
                             className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors disabled:opacity-50"
                           >
@@ -292,20 +298,22 @@ export function InsightDashboardCard() {
                             {savingIdea === i ? 'Saving...' : 'Idea Jar'}
                           </button>
                           <button
-                            onClick={() => handleProposedAction(c.text)}
+                            onClick={() => handleProposedAction(c.text as string)}
                             className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
                           >
                             <ListChecks className="w-3 h-3" />
                             Proposed Action
                           </button>
                         </div>
+                        )}
                       </div>
                     ))}
                   </div>
                 )}
                 <p className="text-xs text-gray-500 border border-dashed border-gray-300 rounded-lg p-3 mt-4 leading-relaxed">
                   Names appear only when a member turns on "Include my name." Averages and other comments
-                  appear after the survey closes, once at least 3 members (not counting you) answered without their name.
+                  appear after the survey closes, once at least {results.min_responses} members (not counting you)
+                  answered without their name.
                 </p>
               </>
             ) : null}

@@ -1,89 +1,77 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import {
-  ArrowLeft,
-  Lightbulb,
-  Plus,
-  X,
-  CheckCircle2,
-  ChevronDown,
-  Send,
-  MessageSquare,
-} from 'lucide-react';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, CheckCircle2, ChevronDown, Send } from 'lucide-react';
 import { Layout } from '../components/Layout';
 import { BottomNav } from '../components/BottomNav';
 import { SuggestionBox } from '../components/home/SuggestionBox';
+import { TodaysMeetingCard } from '../components/feedback/TodaysMeetingCard';
+import { MyHistory } from '../components/feedback/MyHistory';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { IDEA_CATEGORIES, getCategoryColor, getCategoryLabel } from '../lib/ideaCategories';
+import {
+  IDEA_CATEGORIES,
+  IMPACT_STORY_PLACEHOLDER,
+  getCategoryColor,
+  getCategoryLabel,
+} from '../lib/ideaCategories';
 
-interface DepositIdea {
+interface ApprovedIdea {
   id: string;
   title: string;
-  content: string;
+  content: string | null;
   deposit_idea_category: string | null;
-  deposit_idea_approved: boolean;
   created_at: string;
-  member_id: string | null;
-  user_id: string;
 }
 
-const CATEGORIES = IDEA_CATEGORIES;
+type Panel = 'idea' | 'suggestion' | null;
 
+/**
+ * Ideas, Surveys & Suggestions (route /deposit-ideas).
+ * Today's Meeting survey at the top, then "Share an idea" / "Quick suggestion", then My history.
+ * /deposit-ideas?survey=<id> highlights that survey (for WhatsApp links).
+ */
 export function DepositIdeas() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { user, member } = useAuth();
-  const [approvedIdeas, setApprovedIdeas] = useState<DepositIdea[]>([]);
-  const [myIdeas, setMyIdeas] = useState<DepositIdea[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
+  const [panel, setPanel] = useState<Panel>(null);
+  const [historyKey, setHistoryKey] = useState(0);
+  const [approvedIdeas, setApprovedIdeas] = useState<ApprovedIdea[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [category, setCategory] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [ideaError, setIdeaError] = useState('');
+
+  const deepLinkSurveyId = searchParams.get('survey');
+  const refreshHistory = () => setHistoryKey((k) => k + 1);
 
   useEffect(() => {
-    loadIdeas();
+    loadApprovedIdeas();
   }, [user]);
 
-  const loadIdeas = async () => {
+  const loadApprovedIdeas = async () => {
     if (!user) return;
-    try {
-      const [approvedRes, myRes] = await Promise.all([
-        supabase
-          .schema('p0012_rotary')
-          .from('notes')
-          .select('*')
-          .eq('deposit_idea', true)
-          .eq('deposit_idea_approved', true)
-          .order('created_at', { ascending: false }),
-        supabase
-          .schema('p0012_rotary')
-          .from('notes')
-          .select('*')
-          .eq('deposit_idea', true)
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false }),
-      ]);
-
-      if (approvedRes.error) throw approvedRes.error;
-      if (myRes.error) throw myRes.error;
-
-      setApprovedIdeas(approvedRes.data || []);
-      setMyIdeas(myRes.data || []);
-    } catch (error) {
-      console.error('Error loading deposit ideas:', error);
-    } finally {
-      setLoading(false);
-    }
+    const { data, error } = await supabase
+      .schema('p0012_rotary')
+      .from('notes')
+      .select('id, title, content, deposit_idea_category, created_at')
+      .eq('deposit_idea', true)
+      .eq('deposit_idea_approved', true)
+      .order('created_at', { ascending: false })
+      .limit(20);
+    if (error) console.error('Error loading approved ideas:', error);
+    setApprovedIdeas((data as ApprovedIdea[] | null) || []);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmitIdea = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !title.trim()) return;
 
     setSubmitting(true);
+    setIdeaError('');
     try {
       const { error } = await supabase.schema('p0012_rotary').from('notes').insert({
         user_id: user.id,
@@ -93,136 +81,122 @@ export function DepositIdeas() {
         deposit_idea: true,
         deposit_idea_category: category || null,
       });
-
       if (error) throw error;
 
       setTitle('');
       setContent('');
       setCategory('');
-      setShowForm(false);
+      setPanel(null);
       setSuccessMsg('Your idea has been submitted for review!');
       setTimeout(() => setSuccessMsg(''), 4000);
-      await loadIdeas();
+      refreshHistory();
     } catch (error) {
       console.error('Error submitting idea:', error);
+      setIdeaError('Your idea was not sent. Please try again.');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  };
+  const togglePanel = (p: Panel) => setPanel((cur) => (cur === p ? null : p));
 
   return (
     <Layout showHeader={false}>
-      <div className="min-h-screen bg-[#F5F7FA] pb-20">
-        <div className="bg-[#1B2A4A] px-4 py-4 flex items-center gap-4">
+      <div className="min-h-screen bg-[#F4F5F8] pb-20">
+        <div className="bg-[#1B2A4A] px-4 py-3.5 flex items-center gap-3 rounded-b-2xl">
           <button
-            onClick={() => navigate(-1)}
-            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10"
+            // Opened straight from a link (e.g. WhatsApp): there is no page to go back to.
+            onClick={() => (location.key === 'default' ? navigate('/') : navigate(-1))}
+            aria-label="Back"
+            className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-white/10"
           >
             <ArrowLeft className="w-6 h-6 text-white" />
           </button>
-          <h1 className="text-xl font-bold text-white flex-1">Notes, Ideas &amp; Suggestions</h1>
-          <button
-            onClick={() => setShowForm(!showForm)}
-            className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors"
-          >
-            {showForm ? (
-              <X className="w-5 h-5 text-white" />
-            ) : (
-              <Plus className="w-5 h-5 text-white" />
-            )}
-          </button>
+          <h1 className="text-xl font-extrabold text-white flex-1 leading-tight">Ideas, Surveys &amp; Suggestions</h1>
         </div>
 
-        <div className="p-4">
-          <div className="bg-white rounded-xl p-4 mb-4 border-l-4 border-[#D94F4F]">
-            <div className="flex items-start gap-3">
-              <Lightbulb className="w-5 h-5 text-[#D94F4F] mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="text-gray-700 text-sm leading-relaxed">
-                  Share suggestions that could improve or add value to our club.
-                  Think service project ideas, fundraising concepts, meeting structure
-                  improvements, guest speaker suggestions, feedback on events, or
-                  committees you'd love to be a part of.
-                </p>
-              </div>
-            </div>
+        <div className="p-4 flex flex-col gap-4">
+          {member && (
+            <TodaysMeetingCard memberId={member.id} deepLinkSurveyId={deepLinkSurveyId} onSaved={refreshHistory} />
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              aria-expanded={panel === 'idea'}
+              onClick={() => togglePanel('idea')}
+              className={`h-14 rounded-2xl text-[15px] font-extrabold flex items-center justify-center gap-2 ${
+                panel === 'idea' ? 'bg-[#1B2A4A] text-white' : 'bg-white text-[#1B2A4A]'
+              }`}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={panel === 'idea' ? '#FFFFFF' : '#C44444'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 18h6" /><path d="M10 22h4" /><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.3h6c0-1 .4-1.8 1-2.3A7 7 0 0 0 12 2z" /></svg>
+              Share an idea
+            </button>
+            <button
+              type="button"
+              aria-expanded={panel === 'suggestion'}
+              onClick={() => togglePanel('suggestion')}
+              className={`h-14 rounded-2xl text-[15px] font-extrabold flex items-center justify-center gap-2 ${
+                panel === 'suggestion' ? 'bg-[#1B2A4A] text-white' : 'bg-white text-[#1B2A4A]'
+              }`}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={panel === 'suggestion' ? '#FFFFFF' : '#C44444'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+              Quick suggestion
+            </button>
           </div>
 
           {successMsg && (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4 flex items-center gap-2">
+            <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-center gap-2">
               <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
               <p className="text-green-700 text-sm">{successMsg}</p>
             </div>
           )}
 
-          {showForm && (
-            <form
-              onSubmit={handleSubmit}
-              className="bg-white rounded-xl p-5 mb-4 shadow-sm"
-            >
-              <h3 className="font-semibold text-[#1B2A4A] mb-4">Submit an Idea</h3>
-
+          {panel === 'idea' && (
+            <form onSubmit={handleSubmitIdea} className="bg-white rounded-2xl p-5">
+              <h3 className="font-extrabold text-[#1B2A4A] mb-4">Share an idea</h3>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Title
-                  </label>
+                  <label htmlFor="idea-title" className="block text-sm font-medium text-gray-700 mb-1">Title</label>
                   <input
+                    id="idea-title"
                     type="text"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                     required
                     placeholder="Brief summary of your idea"
-                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#D94F4F] focus:border-transparent outline-none transition text-sm"
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#C44444] focus:border-transparent outline-none transition text-sm"
                   />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Category
-                  </label>
+                  <label htmlFor="idea-category" className="block text-sm font-medium text-gray-700 mb-1">Category</label>
                   <div className="relative">
                     <select
+                      id="idea-category"
                       value={category}
                       onChange={(e) => setCategory(e.target.value)}
-                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#D94F4F] focus:border-transparent outline-none transition text-sm appearance-none bg-white"
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#C44444] focus:border-transparent outline-none transition text-sm appearance-none bg-white"
                     >
                       <option value="">Select a category...</option>
-                      {CATEGORIES.map((cat) => (
-                        <option key={cat.value} value={cat.value}>
-                          {cat.label}
-                        </option>
+                      {IDEA_CATEGORIES.map((cat) => (
+                        <option key={cat.value} value={cat.value}>{cat.label}</option>
                       ))}
                     </select>
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                   </div>
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Details
-                  </label>
+                  <label htmlFor="idea-details" className="block text-sm font-medium text-gray-700 mb-1">Details</label>
                   <textarea
+                    id="idea-details"
                     value={content}
                     onChange={(e) => setContent(e.target.value)}
                     rows={4}
-                    placeholder={
-                      category === 'impact_story'
-                        ? "Share what happened, who it helped, and why it mattered. Leaders may share approved stories on the club's social media."
-                        : 'Describe your idea in more detail...'
-                    }
-                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#D94F4F] focus:border-transparent outline-none transition text-sm resize-none"
+                    placeholder={category === 'impact_story' ? IMPACT_STORY_PLACEHOLDER : 'Describe your idea in more detail...'}
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#C44444] focus:border-transparent outline-none transition text-sm resize-none"
                   />
                 </div>
-
+                {ideaError && <p role="alert" className="text-sm font-semibold text-[#C44444]">{ideaError}</p>}
                 <button
                   type="submit"
                   disabled={submitting || !title.trim()}
@@ -235,128 +209,38 @@ export function DepositIdeas() {
             </form>
           )}
 
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="text-center">
-                <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#1B2A4A]"></div>
-                <p className="mt-4 text-gray-600">Loading ideas...</p>
-              </div>
+          {panel === 'suggestion' && (
+            <div className="bg-white rounded-2xl p-5">
+              <h3 className="font-extrabold text-[#1B2A4A] mb-3">Quick suggestion</h3>
+              <SuggestionBox showList={false} onSubmitted={refreshHistory} />
             </div>
-          ) : (
-            <>
-              {approvedIdeas.length > 0 && (
-                <div className="mb-6">
-                  <h2 className="text-lg font-bold text-[#1B2A4A] mb-3 flex items-center gap-2">
-                    <CheckCircle2 className="w-5 h-5 text-green-600" />
-                    Approved Ideas
-                  </h2>
-                  <div className="space-y-3">
-                    {approvedIdeas.map((idea) => (
-                      <div
-                        key={idea.id}
-                        className="bg-white rounded-xl p-4 shadow-sm border-l-4 border-green-500"
-                      >
-                        <div className="flex items-start justify-between gap-3 mb-2">
-                          <h3 className="font-semibold text-gray-800">
-                            {idea.title}
-                          </h3>
-                          {idea.deposit_idea_category && (
-                            <span
-                              className={`text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${getCategoryColor(
-                                idea.deposit_idea_category
-                              )}`}
-                            >
-                              {getCategoryLabel(idea.deposit_idea_category)}
-                            </span>
-                          )}
-                        </div>
-                        {idea.content && (
-                          <p className="text-gray-600 text-sm leading-relaxed">
-                            {idea.content}
-                          </p>
-                        )}
-                        <p className="text-xs text-gray-400 mt-2">
-                          {formatDate(idea.created_at)}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="mb-6">
-                <h2 className="text-lg font-bold text-[#1B2A4A] mb-3">
-                  My Submissions
-                </h2>
-                {myIdeas.length === 0 ? (
-                  <div className="bg-white rounded-xl p-6 text-center">
-                    <Lightbulb className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-                    <p className="text-gray-500 text-sm">
-                      You haven't submitted any ideas yet. Tap the + button to
-                      share your first idea!
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {myIdeas.map((idea) => (
-                      <div
-                        key={idea.id}
-                        className="bg-white rounded-xl p-4 shadow-sm"
-                      >
-                        <div className="flex items-start justify-between gap-3 mb-1">
-                          <h3 className="font-semibold text-gray-800">
-                            {idea.title}
-                          </h3>
-                          <div className="flex items-center gap-2 flex-shrink-0">
-                            {idea.deposit_idea_category && (
-                              <span
-                                className={`text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${getCategoryColor(
-                                  idea.deposit_idea_category
-                                )}`}
-                              >
-                                {getCategoryLabel(idea.deposit_idea_category)}
-                              </span>
-                            )}
-                            {idea.deposit_idea_approved ? (
-                              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-green-100 text-green-700">
-                                Approved
-                              </span>
-                            ) : (
-                              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
-                                Pending
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        {idea.content && (
-                          <p className="text-gray-600 text-sm leading-relaxed">
-                            {idea.content}
-                          </p>
-                        )}
-                        <p className="text-xs text-gray-400 mt-2">
-                          {formatDate(idea.created_at)}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </>
           )}
 
-          {/* Quick Suggestions Section */}
-          <div className="mb-6">
-            <h2 className="text-lg font-bold text-[#1B2A4A] mb-3 flex items-center gap-2">
-              <MessageSquare className="w-5 h-5 text-[#1B2A4A]" />
-              Quick Suggestions
-            </h2>
-            <div className="bg-white rounded-xl p-4 shadow-sm">
-              <p className="text-gray-500 text-xs mb-3">
-                Send a quick suggestion to leadership, or keep it private in your own log.
-              </p>
-              <SuggestionBox />
-            </div>
-          </div>
+          {member && user && <MyHistory memberId={member.id} userId={user.id} refreshKey={historyKey} />}
+
+          {approvedIdeas.length > 0 && (
+            <section aria-labelledby="approved-title" className="bg-white rounded-2xl p-4">
+              <h3 id="approved-title" className="text-lg font-extrabold text-[#1B2A4A] mb-3 flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-green-600" />
+                Approved ideas
+              </h3>
+              <div className="space-y-3">
+                {approvedIdeas.map((idea) => (
+                  <div key={idea.id} className="border border-[#E3E7ED] rounded-xl p-3">
+                    <div className="flex items-start justify-between gap-3 mb-1">
+                      <h4 className="font-bold text-[#1B2A4A]">{idea.title}</h4>
+                      {idea.deposit_idea_category && (
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${getCategoryColor(idea.deposit_idea_category)}`}>
+                          {getCategoryLabel(idea.deposit_idea_category)}
+                        </span>
+                      )}
+                    </div>
+                    {idea.content && <p className="text-gray-600 text-sm leading-relaxed">{idea.content}</p>}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
         </div>
       </div>
       <BottomNav />

@@ -117,7 +117,8 @@ export interface PostEventResults {
   results_visible: boolean;
   averages: Record<string, { avg: number; n: number }> | null;
   distribution: Record<string, Record<'1' | '2' | '3' | '4' | '5' | 'n', number>> | null;
-  comments: { text: string; name: string | null; ratings?: Record<string, number> }[];
+  /** Named answers (with or without a comment) carry name + ratings; unnamed ones are comment text only. */
+  comments: { text: string | null; name: string | null; ratings?: Record<string, number> }[];
 }
 
 export interface IdeaJarItem {
@@ -134,7 +135,7 @@ export interface IdeaJarItem {
 }
 
 export const MEETING_RATING_CATEGORIES = [
-  { key: 'speaker', label: 'Speaker' },
+  { key: 'speaker', label: 'Speaker / Program' },
   { key: 'meal', label: 'Meal' },
 ];
 

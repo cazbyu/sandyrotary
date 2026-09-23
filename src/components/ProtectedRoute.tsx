@@ -1,5 +1,6 @@
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { rememberReturnTo, takeReturnTo } from '../lib/returnTo';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -8,7 +9,8 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, requireAdmin = false, requireLeader = false }: ProtectedRouteProps) {
-  const { user, isAdmin, isLeader, isNonMember, loading, error } = useAuth();
+  const { user, member, isAdmin, isLeader, isNonMember, loading, error } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -26,11 +28,20 @@ export function ProtectedRoute({ children, requireAdmin = false, requireLeader =
   }
 
   if (!user) {
+    // Come back here after login (Google, magic link and password all land on "/" first).
+    // Only for a signed-out arrival (the tab's first page), not after signing out.
+    if (location.key === 'default') rememberReturnTo(location.pathname + location.search);
     return <Navigate to="/login" replace />;
   }
 
   if (isNonMember) {
     return <Navigate to="/access-denied" replace />;
+  }
+
+  // Wait for the member record, so leader/admin checks on the remembered page can pass.
+  const returnTo = member ? takeReturnTo(location.pathname + location.search) : null;
+  if (returnTo) {
+    return <Navigate to={returnTo} replace />;
   }
 
   if (requireAdmin && !isAdmin) {

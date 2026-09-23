@@ -23,7 +23,7 @@ export function ConnectGrowHub() {
 
         <CardGrid>
           <NavCard to="/refer" icon={UserPlus} label="Refer Someone" />
-          <NavCard to="/deposit-ideas" icon={Lightbulb} label="Notes, Ideas & Suggestions" />
+          <NavCard to="/deposit-ideas" icon={Lightbulb} label="Ideas, Surveys & Suggestions" />
         </CardGrid>
       </div>
       <BottomNav />
