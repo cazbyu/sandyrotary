@@ -28,6 +28,7 @@ interface DepositIdea {
 }
 
 const CATEGORIES = [
+  { value: 'impact_story', label: 'Impact Story' },
   { value: 'service_project', label: 'Service Project' },
   { value: 'fundraising', label: 'Fundraising' },
   { value: 'meeting', label: 'Meeting Structure' },
@@ -44,6 +45,8 @@ function getCategoryLabel(value: string | null) {
 
 function getCategoryColor(value: string | null) {
   switch (value) {
+    case 'impact_story':
+      return 'bg-purple-100 text-purple-700';
     case 'service_project':
       return 'bg-teal-100 text-teal-700';
     case 'fundraising':
@@ -245,7 +248,11 @@ export function DepositIdeas() {
                     value={content}
                     onChange={(e) => setContent(e.target.value)}
                     rows={4}
-                    placeholder="Describe your idea in more detail..."
+                    placeholder={
+                      category === 'impact_story'
+                        ? "Share what happened, who it helped, and why it mattered. Leaders may share approved stories on the club's social media."
+                        : 'Describe your idea in more detail...'
+                    }
                     className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#D94F4F] focus:border-transparent outline-none transition text-sm resize-none"
                   />
                 </div>
