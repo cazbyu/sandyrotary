@@ -11,6 +11,17 @@ export const DEFAULT_MEETING_END = { h: 13, m: 30 };
 export const SERVICE_START = { h: 12, m: 0 };
 export const SERVICE_END = { h: 13, m: 0 };
 
+// Susan writes some service dates as "November 2026"; the .xlsx stores those as the 1st
+// and n8n only sees the serial, so any service date on the 1st is treated as month-only.
+export const SERVICE_FIRST_OF_MONTH_IS_TBD = true;
+
+// Categories only the service tab produces; everything else came from the lunch tab.
+export const SERVICE_CATEGORIES = ['Club Service Project', 'Club FundRaiser'];
+
+export function tabForCategory(category) {
+  return SERVICE_CATEGORIES.includes(category) ? 'service' : 'lunch';
+}
+
 export const SPECIAL_EVENTS = [
   'Christmas Party',
   'Initiation',
@@ -284,8 +295,10 @@ export function mapServiceRow(rawRow, ctx = buildContext()) {
   const details = clean(row.details);
   if (organization === null) return { reason: 'missing organization' };
 
+  const dateTbd = date.dateTbd || (SERVICE_FIRST_OF_MONTH_IS_TBD && date.d === 1);
+
   let eventName = details ? `${organization} — ${details}` : organization;
-  if (date.dateTbd) eventName = `(Date TBD) ${eventName}`;
+  if (dateTbd) eventName = `(Date TBD) ${eventName}`;
 
   const isFundraiser = /fundraiser|silent auction/i.test(`${organization} ${details ?? ''}`);
 
@@ -303,7 +316,7 @@ export function mapServiceRow(rawRow, ctx = buildContext()) {
       end_date: zonedTimeToIso(date, SERVICE_END, ctx.timeZone),
       sync_source: SYNC_SOURCE,
     },
-    dateTbd: date.dateTbd,
+    dateTbd,
   };
 }
 
@@ -381,7 +394,7 @@ export function planSync(mapped, existingRows, ctx) {
     const existing = pool && pool.shift();
     if (!existing) {
       inserts.push({ tab, record });
-      finalRows.push({ id: null, ...record });
+      finalRows.push({ id: null, ...record, tab });
       continue;
     }
     matchedIds.add(existing.id);
@@ -391,7 +404,7 @@ export function planSync(mapped, existingRows, ctx) {
     }
     if (Object.keys(changes).length === 0) unchanged++;
     else updates.push({ tab, id: existing.id, changes, record });
-    finalRows.push({ ...existing, ...record, id: existing.id });
+    finalRows.push({ ...existing, ...record, id: existing.id, tab });
   }
 
   const orphaned = candidates
@@ -399,25 +412,32 @@ export function planSync(mapped, existingRows, ctx) {
     .map((r) => ({ id: r.id, date: zonedDateString(r.start_date, tz), event_name: r.event_name }));
 
   for (const r of candidates) {
-    if (!matchedIds.has(r.id)) finalRows.push(r);
+    if (!matchedIds.has(r.id)) finalRows.push({ ...r, tab: tabForCategory(r.category) });
   }
 
   return { inserts, updates, unchanged, orphaned, finalRows };
 }
 
-/** Same date + same category with 2+ synced rows. New rows have id null until inserted. */
+/**
+ * 2+ synced lunch-tab rows on the same date, any category (one lunch event per date is the
+ * real rule). Service rows are never flagged: several projects often share a month-only date.
+ * Rows without a `tab` (e.g. freshly inserted DB rows) get it from their category.
+ * New rows have id null until inserted.
+ */
 export function findPossibleDuplicates(rows, timeZone = DEFAULT_TIME_ZONE) {
   const groups = new Map();
   for (const r of rows) {
-    const key = `${zonedDateString(r.start_date, timeZone)}|${r.category}`;
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(r.id ?? '(new)');
+    if ((r.tab ?? tabForCategory(r.category)) !== 'lunch') continue;
+    const date = zonedDateString(r.start_date, timeZone);
+    if (!groups.has(date)) groups.set(date, { categories: new Set(), ids: [] });
+    const group = groups.get(date);
+    group.categories.add(r.category);
+    group.ids.push(r.id ?? '(new)');
   }
   const out = [];
-  for (const [key, ids] of groups) {
+  for (const [date, { categories, ids }] of groups) {
     if (ids.length < 2) continue;
-    const [date, category] = key.split('|');
-    out.push({ date, category, ids });
+    out.push({ date, tab: 'lunch', categories: [...categories], ids });
   }
   return out.sort((a, b) => a.date.localeCompare(b.date));
 }

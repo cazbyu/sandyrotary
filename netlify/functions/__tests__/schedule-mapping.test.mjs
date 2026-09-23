@@ -10,6 +10,7 @@ import {
   planSync,
   findPossibleDuplicates,
   zonedTimeToIso,
+  zonedDateString,
 } from '../_schedule-mapping.mjs';
 
 const ctx = buildContext({ meetingTime: 'Wednesday, 12:15pm - 1:30pm', meetingTimezone: 'America/Denver' });
@@ -230,13 +231,63 @@ test('payload duplicates are skipped', () => {
   assert.equal(skipped[0].reason, 'duplicate in payload');
 });
 
-test('possible duplicates: 2+ synced rows same date + category', () => {
+test('possible duplicates: 2+ synced lunch-tab rows same date, any category', () => {
   const dupes = findPossibleDuplicates([
     synced({ id: 'a' }),
     synced({ id: 'b', event_name: 'Weekly Club Meeting' }),
     synced({ id: 'c', category: 'No Meeting' }),
   ], 'America/Denver');
-  assert.deepEqual(dupes, [{ date: '2026-08-05', category: 'Club Meeting', ids: ['a', 'b'] }]);
+  assert.deepEqual(dupes, [{ date: '2026-08-05', tab: 'lunch', categories: ['Club Meeting', 'No Meeting'], ids: ['a', 'b', 'c'] }]);
+});
+
+// ---------- v2.1: month-only service dates, lunch-only duplicate warnings ----------
+
+const foodBank = (date) =>
+  mapServiceRow({ date, organization: 'Utah Food Bank', location: '', details: 'Mobile Pantry' }, ctx);
+
+test('service 46327 (2026-11-01) → Date TBD on the 1st', () => {
+  const { record, dateTbd } = foodBank(46327);
+  assert.equal(dateTbd, true);
+  assert.equal(zonedDateString(record.start_date), '2026-11-01');
+  assert.equal(record.event_name, '(Date TBD) Utah Food Bank — Mobile Pantry');
+});
+
+test('service 46273 (2026-09-08) → exact date, not TBD', () => {
+  const { record, dateTbd } = foodBank(46273);
+  assert.equal(dateTbd, false);
+  assert.equal(zonedDateString(record.start_date), '2026-09-08');
+  assert.equal(record.event_name, 'Utah Food Bank — Mobile Pantry');
+});
+
+test('service "12/1/2026" → TBD (rule applies to every format)', () => {
+  const { record, dateTbd } = foodBank('12/1/2026');
+  assert.equal(dateTbd, true);
+  assert.equal(record.event_name, '(Date TBD) Utah Food Bank — Mobile Pantry');
+});
+
+test('lunch 46204 (2026-07-01) "Off for 4th" → not TBD', () => {
+  const { record, dateTbd } = mapLunchRow({ date: 46204, program: 'Off for 4th' }, ctx);
+  assert.equal(dateTbd, false);
+  assert.equal(record.event_name, 'No Meeting — Off for 4th');
+});
+
+test('4 service rows on 2026-12-01 → no possible duplicates', () => {
+  const service = ['A', 'B', 'C', 'D'].map((org) => ({ date: '12/1/2026', organization: org, details: 'Project' }));
+  const { mapped } = mapPayload({ service }, ctx);
+  assert.equal(mapped.length, 4);
+  const plan = planSync(mapped, [], ctx);
+  assert.deepEqual(findPossibleDuplicates(plan.finalRows, ctx.timeZone), []);
+});
+
+test('2 lunch rows on the same date → flagged with tab "lunch"', () => {
+  const { mapped } = mapPayload({ lunch: [
+    { date: '8/5/2026', program: 'Business Meeting' },
+    { date: '8/5/2026', program: 'Off for summer' },
+  ] }, ctx);
+  const plan = planSync(mapped, [], ctx);
+  assert.deepEqual(findPossibleDuplicates(plan.finalRows, ctx.timeZone), [
+    { date: '2026-08-05', tab: 'lunch', categories: ['Club Meeting', 'No Meeting'], ids: ['(new)', '(new)'] },
+  ]);
 });
 
 test('zonedTimeToIso handles the DST switch day', () => {

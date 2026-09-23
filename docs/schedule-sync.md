@@ -39,7 +39,7 @@ Response `200`:
 ```json
 { "inserted": 0, "updated": 0, "unchanged": 0,
   "skipped": [ { "tab": "lunch", "row": {}, "reason": "unparseable date" } ],
-  "possible_duplicates": [ { "date": "2026-08-05", "category": "Club Meeting", "ids": ["…"] } ],
+  "possible_duplicates": [ { "date": "2026-08-05", "tab": "lunch", "categories": ["Club Meeting", "No Meeting"], "ids": ["…"] } ],
   "orphaned": [ { "id": "…", "date": "2026-08-05", "event_name": "…" } ],
   "dry_run": true }
 ```
@@ -77,7 +77,7 @@ With `dry_run: true` everything runs except the writes; the counts show what *wo
 
 ## Service tab
 
-- `event_name` = `<organization> — <details>` (or `<organization>` alone); prefix `(Date TBD) ` for `Month YYYY` dates. Blank organization → skipped (`missing organization`).
+- `event_name` = `<organization> — <details>` (or `<organization>` alone); prefix `(Date TBD) ` for `Month YYYY` dates **and for any date on the 1st of the month** (`SERVICE_FIRST_OF_MONTH_IS_TBD`: the .xlsx stores "November 2026" as 11/1 and n8n only sees the serial, so the display text is lost). Lunch tab is unaffected. Blank organization → skipped (`missing organization`).
 - `category` = `Club FundRaiser` if `/fundraiser|silent auction/i` matches organization or details, else `Club Service Project`.
 - `venue_name` = location; `description` = details.
 - Times: 12:00–13:00 Denver.
@@ -89,7 +89,11 @@ With `dry_run: true` everything runs except the writes; the counts show what *wo
 - **Sync-owned fields** (updated on match): `event_name, category, status, description, speaker_topic, caterer, venue_name, is_board_meeting, start_date, end_date`. No differences → counted `unchanged`.
 - **App-owned, never touched by the sync:** `id, speaker_name, speaker_bio, enable_rsvp` (set false on insert only), `created_by, google_calendar_id`, and all RSVP/attendance/role tables.
 - Because `event_name` is part of the key, renaming a row in the sheet (e.g. adding a program to a blank week, which changes `Weekly Club Meeting` → `Business Meeting`) inserts a new row and reports the old one as `orphaned`. A leader decides what to do with orphans; the sync never deletes.
-- `possible_duplicates`: same Denver date + same category with 2+ synced rows.
+- `possible_duplicates`: 2+ synced **lunch-tab** rows on the same Denver date, any category (one lunch event per date is the real rule). Service-tab rows are never flagged — several projects often share a month-only placeholder date. DB rows are assigned a tab by category (`Club Service Project` / `Club FundRaiser` = service; everything else = lunch).
+
+## Carry-forward
+
+- **`service_role` needs `USAGE` on schema `p0012_rotary`.** It was missing until 2026-09-23 (schedule-sync failed with "permission denied for schema p0012_rotary"); applied live and recorded in `supabase/migrations/20260923010000_p0012_grant_schema_usage_service_role.sql`. This missing grant is a likely cause of the GHL functions failing too — re-test them.
 
 ## Try it (dry run)
 
