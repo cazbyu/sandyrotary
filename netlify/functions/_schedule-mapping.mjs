@@ -22,12 +22,12 @@ export function tabForCategory(category) {
   return SERVICE_CATEGORIES.includes(category) ? 'service' : 'lunch';
 }
 
+// "Spring Break in Canyons" is not here: it's a regular meeting at another location.
 export const SPECIAL_EVENTS = [
   'Christmas Party',
   'Initiation',
   'Rotary Day at the Legislature',
   'Tour of the Utah Museum',
-  'Spring Break',
 ];
 
 // Fields the sync owns. Everything else (speaker_name, speaker_bio,
@@ -41,9 +41,15 @@ export const SYNC_OWNED_FIELDS = [
   'caterer',
   'venue_name',
   'is_board_meeting',
+  'is_all_day',
   'start_date',
   'end_date',
 ];
+
+// A run that would hide more than this many rows of one tab (and more than a fifth of
+// that tab's active rows) is treated as a bad sheet read: nothing on that tab is written
+// (no inserts, updates or hides) and a warning is returned. `allow_bulk_hide` overrides it.
+export const MAX_DEACTIVATIONS_PER_TAB = 5;
 
 const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july',
   'august', 'september', 'october', 'november', 'december'];
@@ -189,6 +195,137 @@ export function parseMeetingTime(text) {
   return { start, end };
 }
 
+// ---------- times written in sheet text ----------
+
+// A clock token: "6", "6:30", "6pm", "6 p.m.", "6:30 PM", or "noon". Digits touching "/", ":",
+// other digits or letters are never a time, so dates ("9/11", "12/16"), street numbers
+// ("6990 S 300 E") and ordinals ("4th of July") don't match.
+const TIME_TOKEN = /(?<![\d/:.])(?:(\d{1,2})(?::(\d{2}))?(?:\s*([ap])\.?\s?m\b\.?|(?![\d/:a-z]))|\b(noon)\b)/gi;
+const RANGE_JOIN = /^\s*(?:to|until|till|'?til|thru|through|-|–|—)\s*$/i;
+const AND_JOIN = /^\s*and\s*$/i;
+const AT_BEFORE = /(?:^|[^a-z])at\s+$/i;
+// A bare number right after a month, weekday or room word is a date or a room, not a range start.
+const NOT_A_CLOCK_BEFORE = /(?:\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun)[a-z]*\.?|\broom|\bno\.?|#)\s*$/i;
+
+function tokenMinutes(hour, minute, meridiem) {
+  if (minute > 59) return null;
+  if (meridiem) {
+    if (hour < 1 || hour > 12) return null;
+    return ((hour % 12) + (meridiem === 'p' ? 12 : 0)) * 60 + minute;
+  }
+  // No am/pm: 7–11 → morning, 12 → noon, 1–6 → afternoon/evening. Anything else is implausible.
+  if (hour >= 7 && hour <= 11) return hour * 60 + minute;
+  if (hour === 12) return 12 * 60 + minute;
+  if (hour >= 1 && hour <= 6) return (hour + 12) * 60 + minute;
+  return null;
+}
+
+const hhmm = (mins) => `${pad(Math.floor(mins / 60))}:${pad(mins % 60)}`;
+const plausibleStart = (mins) => mins >= 6 * 60 && mins < 22 * 60;
+
+function readTokens(text) {
+  const tokens = [];
+  for (const m of text.matchAll(TIME_TOKEN)) {
+    const noon = m[4] !== undefined;
+    tokens.push({
+      index: m.index,
+      end: m.index + m[0].length,
+      hour: noon ? 12 : Number(m[1]),
+      minute: noon || m[2] === undefined ? 0 : Number(m[2]),
+      hasColon: noon || m[2] !== undefined,
+      meridiem: noon ? 'p' : (m[3] ? m[3].toLowerCase() : null),
+      noon,
+    });
+  }
+  return tokens;
+}
+
+/**
+ * "5:30 to 7:30 pm": one am/pm at the end applies to both ends. At least one end needs
+ * am/pm (or "noon"). Returns { range } or { reject: 'date' | 'other' }.
+ */
+function readRange(a, b, textBefore) {
+  if (!a.meridiem && !b.meridiem) return { reject: 'other' };
+  // "Nov 7 - 6pm", "Room 2 - 6pm": the bare number is a date or a room, not the start.
+  if (!a.meridiem && !a.hasColon && NOT_A_CLOCK_BEFORE.test(textBefore)) return { reject: 'date' };
+  const end = b.meridiem ? tokenMinutes(b.hour, b.minute, b.meridiem) : null;
+  let start;
+  let morningGuess = false;
+  if (a.meridiem) {
+    start = tokenMinutes(a.hour, a.minute, a.meridiem);
+  } else {
+    start = tokenMinutes(a.hour, a.minute, b.meridiem);
+    // "11:30 to 1 pm": the shared "pm" would put the start after the end, so it's morning.
+    if (start !== null && end !== null && start >= end) {
+      start = tokenMinutes(a.hour, a.minute, 'a');
+      morningGuess = true;
+    }
+  }
+  if (start === null) return { reject: 'other' };
+  let endMins = end;
+  if (endMins === null) {
+    // End without am/pm: the first reading of that hour that comes after the start.
+    const base = (b.hour % 12) * 60 + b.minute;
+    endMins = b.minute > 59 ? null : ([base, base + 12 * 60].find((m) => m > start) ?? null);
+  }
+  const maxSpan = morningGuess ? 6 * 60 : 12 * 60;
+  if (endMins === null || endMins <= start || endMins - start > maxSpan || !plausibleStart(start)) {
+    return { reject: 'other' };
+  }
+  return { range: { start: hhmm(start), end: hhmm(endMins) } };
+}
+
+/**
+ * The first time written in `texts` (checked in order), or null.
+ * Recognises "6 p.m.", "6pm", "6:30 pm", "at 10:30", and ranges "5:30 to 7:30 pm" /
+ * "5:30-7:30pm" / "5:30 – 7:30 p.m." / "noon - 2pm" / "4:30 until 6:30 pm".
+ * A lone time needs am/pm, or "at" plus a colon time ("at 10:30"): notes like "until 12:05",
+ * "at 3 schools" or "at 4th of July" are not times. "noon" only counts inside a range.
+ * The end of a range that couldn't be read ("between 5 and 7 pm") is never taken as a start.
+ * Returns { start: 'HH:MM', end?: 'HH:MM' } — end only when the text gives a range.
+ */
+export function parseTimeFromText(texts) {
+  for (const raw of texts || []) {
+    if (raw === null || raw === undefined) continue;
+    const text = String(raw);
+    const tokens = readTokens(text);
+    const endsUnreadRange = new Set();
+    for (let i = 0; i < tokens.length; i++) {
+      const tok = tokens[i];
+      const next = tokens[i + 1];
+      const between = next ? text.slice(tok.end, next.index) : '';
+      if (next && RANGE_JOIN.test(between)) {
+        const result = readRange(tok, next, text.slice(0, tok.index));
+        if (result.range) return result.range;
+        if (result.reject === 'other') endsUnreadRange.add(i + 1);
+      } else if (next && AND_JOIN.test(between)) {
+        endsUnreadRange.add(i + 1);
+      }
+      if (tok.noon || endsUnreadRange.has(i)) continue;
+      const afterAt = AT_BEFORE.test(text.slice(0, tok.index));
+      if (!tok.meridiem && !(afterAt && tok.hasColon)) continue;
+      const start = tokenMinutes(tok.hour, tok.minute, tok.meridiem);
+      if (start !== null && plausibleStart(start)) return { start: hhmm(start) };
+    }
+  }
+  return null;
+}
+
+const toClock = (s) => ({ h: Number(s.slice(0, 2)), m: Number(s.slice(3, 5)) });
+
+/**
+ * Start/end clocks for a parsed time. A range is used as written; a single time runs to the
+ * meeting end (13:30) when it starts before it, otherwise for two hours.
+ */
+export function timesFromParsed(parsed, meetingEnd = DEFAULT_MEETING_END) {
+  const start = toClock(parsed.start);
+  if (parsed.end) return { start, end: toClock(parsed.end) };
+  const startMins = start.h * 60 + start.m;
+  const meetingEndMins = meetingEnd.h * 60 + meetingEnd.m;
+  const endMins = startMins < meetingEndMins ? meetingEndMins : startMins + 120;
+  return { start, end: { h: Math.floor(endMins / 60), m: endMins % 60 } };
+}
+
 export function isValidTimeZone(tz) {
   try {
     new Intl.DateTimeFormat('en-US', { timeZone: tz });
@@ -264,10 +401,16 @@ export function mapLunchRow(rawRow, ctx = buildContext()) {
   }
 
   // host_member ("who arranged the speaker") is internal to the board and is not synced.
-  const descriptionParts = [
-    clean(row.notes),
-    boardCell && !isBoardMeeting ? boardCell : null,
-  ].filter(Boolean);
+  const notes = clean(row.notes);
+  const boardNote = boardCell && !isBoardMeeting ? boardCell : null;
+  const descriptionParts = [notes, boardNote].filter(Boolean);
+
+  // A time written in the program or notes ("Initiation - 6 p.m.") overrides the lunch slot.
+  // Month-only dates are all-day, like on the service tab.
+  const parsed = date.dateTbd ? null : parseTimeFromText([program, notes, boardNote]);
+  const { start, end } = parsed
+    ? timesFromParsed(parsed, ctx.meetingEnd)
+    : { start: ctx.meetingStart, end: ctx.meetingEnd };
 
   return {
     record: {
@@ -279,8 +422,9 @@ export function mapLunchRow(rawRow, ctx = buildContext()) {
       caterer,
       venue_name: venueName,
       is_board_meeting: isBoardMeeting,
-      start_date: zonedTimeToIso(date, ctx.meetingStart, ctx.timeZone),
-      end_date: zonedTimeToIso(date, ctx.meetingEnd, ctx.timeZone),
+      is_all_day: date.dateTbd,
+      start_date: zonedTimeToIso(date, start, ctx.timeZone),
+      end_date: zonedTimeToIso(date, end, ctx.timeZone),
       sync_source: SYNC_SOURCE,
     },
     dateTbd: date.dateTbd,
@@ -297,6 +441,7 @@ export function mapServiceRow(rawRow, ctx = buildContext()) {
 
   const organization = clean(row.organization);
   const details = clean(row.details);
+  const location = clean(row.location);
   if (organization === null) return { reason: 'missing organization' };
 
   const dateTbd = date.dateTbd || (SERVICE_FIRST_OF_MONTH_IS_TBD && date.d === 1);
@@ -306,6 +451,13 @@ export function mapServiceRow(rawRow, ctx = buildContext()) {
 
   const isFundraiser = /fundraiser|silent auction/i.test(`${organization} ${details ?? ''}`);
 
+  // A written time sets the slot; otherwise the project is all-day. All-day rows keep a
+  // 12:00–13:00 Denver slot so the stored date never shifts across time zones.
+  const parsed = dateTbd ? null : parseTimeFromText([details, location]);
+  const { start, end } = parsed
+    ? timesFromParsed(parsed, ctx.meetingEnd)
+    : { start: SERVICE_START, end: SERVICE_END };
+
   return {
     record: {
       event_name: eventName,
@@ -314,10 +466,11 @@ export function mapServiceRow(rawRow, ctx = buildContext()) {
       description: details,
       speaker_topic: null,
       caterer: null,
-      venue_name: clean(row.location),
+      venue_name: location,
       is_board_meeting: false,
-      start_date: zonedTimeToIso(date, SERVICE_START, ctx.timeZone),
-      end_date: zonedTimeToIso(date, SERVICE_END, ctx.timeZone),
+      is_all_day: !parsed,
+      start_date: zonedTimeToIso(date, start, ctx.timeZone),
+      end_date: zonedTimeToIso(date, end, ctx.timeZone),
       sync_source: SYNC_SOURCE,
     },
     dateTbd,
@@ -380,12 +533,17 @@ function planKey(tab, record, timeZone) {
     : `service|${matchKey(record, timeZone)}`;
 }
 
+const isInactive = (row) => row.status === 'Inactive';
+
 /**
- * Decide inserts/updates against existing rows.
+ * Decide inserts/updates/deactivations against existing rows.
  * Only rows with sync_source = 'google-sheet' dated on/after the window are considered;
  * anything else passed in is ignored (defence in depth — the query filters too).
+ * Inactive synced rows are matchable, so a row that returns to the sheet is reactivated.
+ * `tabs` lists the tabs present in the payload; rows of a missing tab are never hidden.
+ * `allowBulkHide` skips the bad-read guard (for an intended bulk change to the sheet).
  */
-export function planSync(mapped, existingRows, ctx) {
+export function planSync(mapped, existingRows, ctx, { tabs = ['lunch', 'service'], allowBulkHide = false } = {}) {
   const tz = ctx.timeZone;
   const candidates = (existingRows || []).filter(
     (r) => r.sync_source === SYNC_SOURCE && zonedDateString(r.start_date, tz) >= SYNC_WINDOW_START,
@@ -397,19 +555,20 @@ export function planSync(mapped, existingRows, ctx) {
     if (!byKey.has(key)) byKey.set(key, []);
     byKey.get(key).push(row);
   }
+  // Prefer an Active row when a key also has hidden leftovers.
+  for (const rows of byKey.values()) rows.sort((a, b) => Number(isInactive(a)) - Number(isInactive(b)));
 
-  // 2+ synced lunch-type rows on one date: ambiguous, so none are updated or orphaned.
+  // 2+ Active synced lunch-type rows on one date: ambiguous, so none are updated or hidden.
   // They stay in finalRows and surface in possible_duplicates.
   const heldIds = new Set();
   for (const [key, rows] of byKey) {
-    if (key.startsWith('lunch|') && rows.length > 1) rows.forEach((r) => heldIds.add(r.id));
+    const active = rows.filter((r) => !isInactive(r));
+    if (key.startsWith('lunch|') && active.length > 1) rows.forEach((r) => heldIds.add(r.id));
   }
 
   const inserts = [];
   const updates = [];
-  let unchanged = 0;
-  const matchedIds = new Set();
-  const finalRows = []; // post-sync view of synced rows, for duplicate detection
+  const matches = []; // { tab, existing, record, changed }
 
   for (const { tab, record } of mapped) {
     const pool = byKey.get(planKey(tab, record, tz));
@@ -417,39 +576,83 @@ export function planSync(mapped, existingRows, ctx) {
     const existing = pool && pool.shift();
     if (!existing) {
       inserts.push({ tab, record });
-      finalRows.push({ id: null, ...record, tab });
       continue;
     }
-    matchedIds.add(existing.id);
     const changes = {};
     for (const field of SYNC_OWNED_FIELDS) {
       if (!sameValue(field, existing[field], record[field])) changes[field] = record[field];
     }
-    if (Object.keys(changes).length === 0) unchanged++;
-    else updates.push({ tab, id: existing.id, changes, record });
-    finalRows.push({ ...existing, ...record, id: existing.id, tab });
+    const changed = Object.keys(changes).length > 0;
+    if (changed) updates.push({ tab, id: existing.id, changes, record });
+    matches.push({ tab, existing, record, changed });
   }
+  const matchedIds = new Set(matches.map((m) => m.existing.id));
 
-  const orphaned = candidates
-    .filter((r) => !matchedIds.has(r.id) && !heldIds.has(r.id))
+  // Active rows no longer in the sheet are hidden (never deleted). Rows already hidden stay
+  // quiet, so each disappearance is reported once. A row the sync skipped (e.g. unparseable
+  // date) can't be matched, so it counts as missing too.
+  const vanished = candidates.filter(
+    (r) => !matchedIds.has(r.id) && !heldIds.has(r.id) && !isInactive(r)
+      && tabs.includes(tabForCategory(r.category)),
+  );
+
+  // Bad-read guard: when most of a tab seems to have vanished, freeze that tab for this run.
+  const warnings = [];
+  const frozenTabs = new Set();
+  for (const tab of tabs) {
+    const missing = vanished.filter((r) => tabForCategory(r.category) === tab).length;
+    const active = candidates.filter((r) => tabForCategory(r.category) === tab && !isInactive(r)).length;
+    if (!allowBulkHide && missing > MAX_DEACTIVATIONS_PER_TAB && missing > active / 5) {
+      frozenTabs.add(tab);
+      warnings.push(
+        `${tab} tab: ${missing} of ${active} active rows are missing from the sheet. This looks like an `
+        + `incomplete sheet read, so no ${tab} rows were changed this run. Check the sheet; if the change is `
+        + 'intended, run once with "allow_bulk_hide": true.',
+      );
+    }
+  }
+  const live = (tab) => !frozenTabs.has(tab);
+
+  const deactivations = vanished.filter((r) => live(tabForCategory(r.category)));
+  const deactivateIds = new Set(deactivations.map((r) => r.id));
+  const orphaned = deactivations
     .map((r) => ({ id: r.id, date: zonedDateString(r.start_date, tz), event_name: r.event_name }));
 
+  // Post-sync view of synced rows, for duplicate detection.
+  const finalRows = [];
+  for (const { tab, existing, record } of matches) {
+    finalRows.push(live(tab) ? { ...existing, ...record, id: existing.id, tab } : { ...existing, tab });
+  }
+  for (const { tab, record } of inserts) {
+    if (live(tab)) finalRows.push({ id: null, ...record, tab });
+  }
   for (const r of candidates) {
-    if (!matchedIds.has(r.id)) finalRows.push({ ...r, tab: tabForCategory(r.category) });
+    if (matchedIds.has(r.id)) continue;
+    const status = deactivateIds.has(r.id) ? 'Inactive' : r.status;
+    finalRows.push({ ...r, status, tab: tabForCategory(r.category) });
   }
 
-  return { inserts, updates, unchanged, orphaned, finalRows };
+  return {
+    inserts: inserts.filter((i) => live(i.tab)),
+    updates: updates.filter((u) => live(u.tab)),
+    unchanged: matches.filter((m) => !m.changed).length,
+    deactivations: deactivations.map((r) => r.id),
+    orphaned,
+    warnings,
+    finalRows,
+  };
 }
 
 /**
  * 2+ synced lunch-tab rows on the same date, any category (one lunch event per date is the
  * real rule). Service rows are never flagged: several projects often share a month-only date.
  * Rows without a `tab` (e.g. freshly inserted DB rows) get it from their category.
- * New rows have id null until inserted.
+ * Hidden (Inactive) rows don't count. New rows have id null until inserted.
  */
 export function findPossibleDuplicates(rows, timeZone = DEFAULT_TIME_ZONE) {
   const groups = new Map();
   for (const r of rows) {
+    if (isInactive(r)) continue;
     if ((r.tab ?? tabForCategory(r.category)) !== 'lunch') continue;
     const date = zonedDateString(r.start_date, timeZone);
     if (!groups.has(date)) groups.set(date, { categories: new Set(), ids: [] });

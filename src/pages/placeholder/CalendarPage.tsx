@@ -53,6 +53,7 @@ interface CalendarEvent {
   address_state?: string;
   address_zip?: string;
   enable_rsvp: boolean;
+  is_all_day?: boolean;
   status: string;
   speaker_name?: string;
   speaker_topic?: string;
@@ -337,8 +338,14 @@ export function CalendarPage() {
                             </span>
                           )}
                           <p className="text-sm text-gray-600">
-                            {formatTimeFromTimestamp(event.start_date)}
-                            {event.end_date && ` - ${formatTimeFromTimestamp(event.end_date)}`}
+                            {event.is_all_day ? (
+                              'All day'
+                            ) : (
+                              <>
+                                {formatTimeFromTimestamp(event.start_date)}
+                                {event.end_date && ` - ${formatTimeFromTimestamp(event.end_date)}`}
+                              </>
+                            )}
                           </p>
                           {!isExpanded && event.description && (
                             <p className="text-sm text-gray-600 mt-2 line-clamp-2">

@@ -11,6 +11,7 @@ import {
   findPossibleDuplicates,
   zonedTimeToIso,
   zonedDateString,
+  parseTimeFromText,
 } from '../_schedule-mapping.mjs';
 
 const ctx = buildContext({ meetingTime: 'Wednesday, 12:15pm - 1:30pm', meetingTimezone: 'America/Denver' });
@@ -204,6 +205,7 @@ const synced = (over) => ({
   caterer: 'Catering by Bryce',
   venue_name: null,
   is_board_meeting: false,
+  is_all_day: false,
   start_date: '2026-08-05T18:15:00+00:00',
   end_date: '2026-08-05T19:30:00+00:00',
   ...over,
@@ -367,4 +369,203 @@ test('2 lunch rows on the same date → flagged with tab "lunch"', () => {
 test('zonedTimeToIso handles the DST switch day', () => {
   assert.equal(zonedTimeToIso({ y: 2026, m: 11, d: 1 }, { h: 12, m: 0 }, 'America/Denver'), '2026-11-01T19:00:00.000Z');
   assert.equal(zonedTimeToIso({ y: 2026, m: 3, d: 8 }, { h: 12, m: 0 }, 'America/Denver'), '2026-03-08T18:00:00.000Z');
+});
+
+// ---------- v2.4: times from text, all-day service, hide vanished rows ----------
+
+const denverClock = (iso) =>
+  new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Denver', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(iso));
+const slot = (record) => `${denverClock(record.start_date)}–${denverClock(record.end_date)}`;
+
+test('"Initiation - 6 p.m." → 18:00–20:00 Club Event', () => {
+  const { record } = mapLunchRow({ date: '6/16/2027', program: 'Initiation - 6 p.m.', location_caterer: 'Peaks Rooms' }, ctx);
+  assert.equal(record.category, 'Club Event');
+  assert.equal(slot(record), '18:00–20:00');
+  assert.equal(record.is_all_day, false);
+});
+
+test('service "Volunteer for Flag 9/11 project 5:30 to 7:30 pm" → 17:30–19:30, not all-day', () => {
+  const { record } = mapServiceRow(
+    { date: '9/9/2026', organization: 'Sandy City', details: 'Volunteer for Flag 9/11 project 5:30 to 7:30 pm', location: 'The Utah Healing Field, Sandy City' },
+    ctx,
+  );
+  assert.equal(slot(record), '17:30–19:30');
+  assert.equal(record.is_all_day, false);
+  assert.equal(zonedDateString(record.start_date), '2026-09-09');
+});
+
+test('tour board note "…at 10:30; lunch served at noon…" → 10:30–13:30', () => {
+  const note = 'this is at the Capitol north building at 10:30; lunch served at noon in the Kletting room (Senate building)';
+  const { record } = mapLunchRow({ date: '8/19/2026', program: 'Tour of the Utah Museum', location_caterer: 'Kathryn', board_meeting: note }, ctx);
+  assert.equal(slot(record), '10:30–13:30');
+});
+
+test('"Rotary Day at the Legislature" with no time → default 12:15–13:30', () => {
+  const { record } = mapLunchRow({ date: '2/3/2027', program: 'Rotary Day at the Legislature', location_caterer: 'State Capitol' }, ctx);
+  assert.equal(record.category, 'Club Event');
+  assert.equal(slot(record), '12:15–13:30');
+});
+
+test('8/5 note "until 12:05" is not read as the meeting time', () => {
+  const { record } = lunch('Wade Williams - nuclear energy', { board_meeting: '* we cannot get into the room this day until 12:05' });
+  assert.equal(slot(record), '12:15–13:30');
+});
+
+test('service "Mobile Pantry" with an address → all-day, stored 12:00–13:00 Denver', () => {
+  const { record } = mapServiceRow(
+    { date: '9/8/2026', organization: 'Utah Food Bank', details: 'Mobile Pantry', location: 'East Midvale Elementary 6990 S 300 E' },
+    ctx,
+  );
+  assert.equal(record.is_all_day, true);
+  assert.equal(slot(record), '12:00–13:00');
+});
+
+test('month-only (Date TBD) service rows are all-day', () => {
+  const { record } = mapServiceRow({ date: 'December 2026', organization: 'Salvation Army', details: 'Ring the Bell 5-7pm' }, ctx);
+  assert.equal(record.is_all_day, true);
+  assert.ok(record.event_name.startsWith('(Date TBD) '));
+});
+
+test('"Spring Break in Canyons" → Club Meeting, name unchanged', () => {
+  const { record } = mapLunchRow({ date: '4/7/2027', program: 'Spring Break in Canyons' }, ctx);
+  assert.equal(record.category, 'Club Meeting');
+  assert.equal(record.event_name, 'Spring Break in Canyons');
+});
+
+test('date guard: "12/16", "9/11" and "9/11 project" alone parse as no time', () => {
+  assert.equal(parseTimeFromText(['12/16']), null);
+  assert.equal(parseTimeFromText(['9/11']), null);
+  assert.equal(parseTimeFromText(['9/11 project']), null);
+  assert.equal(parseTimeFromText(['Off for the 24th of July', '6990 S 300 E']), null);
+});
+
+test('parseTimeFromText recognises the written forms', () => {
+  assert.deepEqual(parseTimeFromText(['6pm']), { start: '18:00' });
+  assert.deepEqual(parseTimeFromText(['6 PM']), { start: '18:00' });
+  assert.deepEqual(parseTimeFromText(['6:30 pm']), { start: '18:30' });
+  assert.deepEqual(parseTimeFromText(['5:30-7:30pm']), { start: '17:30', end: '19:30' });
+  assert.deepEqual(parseTimeFromText(['5:30 – 7:30 p.m.']), { start: '17:30', end: '19:30' });
+  assert.deepEqual(parseTimeFromText(['11:30 to 1 pm']), { start: '11:30', end: '13:00' });
+  assert.deepEqual(parseTimeFromText(['meet at 7:00']), { start: '07:00' });
+  assert.deepEqual(parseTimeFromText(['meet at 6:30']), { start: '18:30' });
+  assert.deepEqual(parseTimeFromText(['Dinner 6pm: bring a dish']), { start: '18:00' });
+  assert.deepEqual(parseTimeFromText(['6pm/7pm']), { start: '18:00' });
+  assert.equal(parseTimeFromText(['at the Capitol']), null);
+  assert.equal(parseTimeFromText(['6 amazing volunteers']), null);
+  assert.equal(parseTimeFromText(['until 12:05']), null);
+  // Texts are checked in order: the program wins over the notes.
+  assert.deepEqual(parseTimeFromText(['Initiation - 6 p.m.', 'doors at 5:30 pm']), { start: '18:00' });
+});
+
+test('"at" + a bare number, ordinals and counts are not times', () => {
+  assert.equal(parseTimeFromText(['meet at 6']), null);
+  assert.equal(parseTimeFromText(['Volunteer at 4th of July parade']), null);
+  assert.equal(parseTimeFromText(['Book Blitz at 3 schools']), null);
+  assert.equal(parseTimeFromText(['Social Meeting at 5 Guys']), null);
+  assert.equal(parseTimeFromText(['meet at 9th and 9th']), null);
+  assert.equal(parseTimeFromText(['Pick up at 7-11']), null);
+  assert.deepEqual(parseTimeFromText(['Help at 4th of July parade at 9 am']), { start: '09:00' });
+});
+
+test('a date or room number before a dash is not a range start', () => {
+  assert.deepEqual(parseTimeFromText(['Mobile Pantry Nov 7 - 6pm']), { start: '18:00' });
+  assert.deepEqual(parseTimeFromText(['Ring the Bell Sat Dec 12 - 3pm']), { start: '15:00' });
+  assert.deepEqual(parseTimeFromText(['Room 2 - 6pm']), { start: '18:00' });
+  // A made-up 10-hour span is rejected, and its end isn't taken as the start either.
+  assert.equal(parseTimeFromText(['8 - 6pm']), null);
+});
+
+test('noon and until/till/thru ranges; an unread range end is never the start', () => {
+  assert.deepEqual(parseTimeFromText(['Mobile Pantry noon - 2pm']), { start: '12:00', end: '14:00' });
+  assert.deepEqual(parseTimeFromText(['8 am to noon']), { start: '08:00', end: '12:00' });
+  assert.deepEqual(parseTimeFromText(['4:30 until 6:30 pm']), { start: '16:30', end: '18:30' });
+  assert.deepEqual(parseTimeFromText(['5:30 till 7:30 pm']), { start: '17:30', end: '19:30' });
+  assert.deepEqual(parseTimeFromText(['5:30 thru 7:30 pm']), { start: '17:30', end: '19:30' });
+  assert.equal(parseTimeFromText(['between 5 and 7 pm']), null);
+  assert.equal(parseTimeFromText(['lunch served at noon']), null);
+});
+
+test('logistics notes without am/pm do not move the lunch meeting', () => {
+  assert.equal(parseTimeFromText(['room available 12:05-1:30']), null);
+  assert.equal(parseTimeFromText(['Board meeting 11:30-12:15']), null);
+});
+
+test('month-only dates on the lunch tab are all-day too', () => {
+  const { record, dateTbd } = mapLunchRow({ date: 'November 2026', program: 'Holiday lunch 6 pm' }, ctx);
+  assert.equal(dateTbd, true);
+  assert.equal(record.is_all_day, true);
+  assert.equal(slot(record), '12:15–13:30');
+});
+
+const lunchRow = (date, program = 'Business Meeting') => ({ date, program });
+
+test('vanished row → Inactive and listed once; returning row → Active again', () => {
+  const sheet = [lunchRow('10/7/2026', 'Mayor Zoltanski'), lunchRow('10/14/2026')];
+  const db = mapPayload({ lunch: sheet }, ctx).mapped.map(({ record }, i) => ({ id: `r${i}`, ...record }));
+
+  // Run 1: 10/14 disappears from the sheet.
+  const run1 = planSync(mapPayload({ lunch: [sheet[0]] }, ctx).mapped, db, ctx, { tabs: ['lunch'] });
+  assert.deepEqual(run1.deactivations, ['r1']);
+  assert.deepEqual(run1.orphaned.map((o) => o.id), ['r1']);
+  assert.equal(run1.unchanged, 1);
+
+  // Run 2: still missing, already Inactive → not listed again.
+  const db2 = db.map((r) => (r.id === 'r1' ? { ...r, status: 'Inactive' } : r));
+  const run2 = planSync(mapPayload({ lunch: [sheet[0]] }, ctx).mapped, db2, ctx, { tabs: ['lunch'] });
+  assert.deepEqual(run2.deactivations, []);
+  assert.deepEqual(run2.orphaned, []);
+
+  // Run 3: it comes back → matched and set Active again, nothing inserted.
+  const run3 = planSync(mapPayload({ lunch: sheet }, ctx).mapped, db2, ctx, { tabs: ['lunch'] });
+  assert.equal(run3.inserts.length, 0);
+  assert.equal(run3.updates.length, 1);
+  assert.equal(run3.updates[0].id, 'r1');
+  assert.deepEqual(run3.updates[0].changes, { status: 'Active' });
+});
+
+test('hidden rows are ignored by the duplicate check', () => {
+  const rows = [synced({ id: 'a' }), synced({ id: 'b', status: 'Inactive' })];
+  assert.deepEqual(findPossibleDuplicates(rows, 'America/Denver'), []);
+});
+
+test('an Active and a hidden lunch row on one date: the Active one is matched, nothing held', () => {
+  const { mapped } = mapPayload({ lunch: [{ date: '8/5/2026', program: 'Business Meeting', location_caterer: 'Catering by Bryce' }] }, ctx);
+  const plan = planSync(mapped, [synced({ id: 'old', status: 'Inactive' }), synced({ id: 'live' })], ctx);
+  assert.equal(plan.unchanged, 1);
+  assert.deepEqual(plan.deactivations, []);
+  assert.deepEqual(plan.orphaned, []);
+});
+
+test('a tab missing from the payload is never hidden', () => {
+  const svc = mapServiceRow({ date: '10/10/2026', organization: 'Utah Food Bank', details: 'Mobile Pantry' }, ctx).record;
+  const plan = planSync([], [{ id: 's1', ...svc }], ctx, { tabs: ['lunch'] });
+  assert.deepEqual(plan.deactivations, []);
+});
+
+test('a bad sheet read (most rows missing) changes nothing on that tab and warns', () => {
+  const dates = ['10/7/2026', '10/14/2026', '10/21/2026', '11/4/2026', '11/11/2026', '11/18/2026', '12/2/2026'];
+  const db = dates.map((d, i) => ({ id: `m${i}`, ...mapLunchRow(lunchRow(d), ctx).record }));
+  const plan = planSync([], db, ctx, { tabs: ['lunch'] });
+  assert.deepEqual(plan.deactivations, []);
+  assert.deepEqual(plan.orphaned, []);
+  assert.equal(plan.warnings.length, 1);
+  assert.match(plan.warnings[0], /lunch tab: 7 of 7 active rows are missing/);
+  // allow_bulk_hide applies it anyway.
+  assert.equal(planSync([], db, ctx, { tabs: ['lunch'], allowBulkHide: true }).deactivations.length, 7);
+});
+
+test('bad read that changes keys (details column lost): no inserts, no hides, so nothing is left duplicated', () => {
+  const orgs = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+  const good = orgs.map((o) => ({ date: '10/10/2026', organization: o, details: 'Project' }));
+  const db = mapPayload({ service: good }, ctx).mapped.map(({ record }, i) => ({ id: `s${i}`, ...record }));
+  const bad = orgs.map((o) => ({ date: '10/10/2026', organization: o })); // details missing → new names
+  const plan = planSync(mapPayload({ service: bad }, ctx).mapped, db, ctx, { tabs: ['service'] });
+  assert.equal(plan.inserts.length, 0);
+  assert.equal(plan.updates.length, 0);
+  assert.deepEqual(plan.deactivations, []);
+  assert.equal(plan.warnings.length, 1);
+  // The next good read is a clean no-op.
+  const next = planSync(mapPayload({ service: good }, ctx).mapped, db, ctx, { tabs: ['service'] });
+  assert.equal(next.unchanged, 8);
+  assert.equal(next.inserts.length + next.updates.length + next.deactivations.length, 0);
 });

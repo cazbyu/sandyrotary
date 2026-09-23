@@ -14,7 +14,8 @@ import {
 /**
  * POST /.netlify/functions/schedule-sync
  * Called hourly by n8n with the board's schedule spreadsheet rows.
- * One-way: spreadsheet → p0012_rotary.calendar_events. Never deletes.
+ * One-way: spreadsheet → p0012_rotary.calendar_events. Never deletes: rows that vanish
+ * from the sheet are set Inactive and reactivated if they come back.
  * See docs/schedule-sync.md.
  */
 
@@ -65,6 +66,9 @@ function validateBody(body) {
   const rows = [...(body.lunch || []), ...(body.service || [])];
   if (rows.some((r) => !r || typeof r !== 'object' || Array.isArray(r))) return 'Every row must be an object';
   if (body.dry_run !== undefined && typeof body.dry_run !== 'boolean') return '"dry_run" must be a boolean';
+  if (body.allow_bulk_hide !== undefined && typeof body.allow_bulk_hide !== 'boolean') {
+    return '"allow_bulk_hide" must be a boolean';
+  }
   return null;
 }
 
@@ -101,7 +105,7 @@ export default async (req) => {
     const ctx = await loadContext(supabase);
     const { mapped, skipped } = mapPayload({ lunch: body.lunch || [], service: body.service || [] }, ctx);
 
-    // 4. Match — only synced rows inside the window are ever read.
+    // 4. Match — only synced rows inside the window are ever read (Active and Inactive).
     const windowStart = zonedTimeToIso(
       { y: Number(SYNC_WINDOW_START.slice(0, 4)), m: Number(SYNC_WINDOW_START.slice(5, 7)), d: Number(SYNC_WINDOW_START.slice(8, 10)) },
       { h: 0, m: 0 },
@@ -115,7 +119,9 @@ export default async (req) => {
       .gte('start_date', windowStart);
     if (existingError) throw new Error(`Failed to read calendar_events: ${existingError.message}`);
 
-    const plan = planSync(mapped, existing, ctx);
+    // A tab left out of the body is never treated as "everything vanished".
+    const tabs = ['lunch', 'service'].filter((tab) => Array.isArray(body[tab]));
+    const plan = planSync(mapped, existing, ctx, { tabs, allowBulkHide: body.allow_bulk_hide === true });
     let finalRows = plan.finalRows;
 
     // 5. Write (batched per tab)
@@ -153,6 +159,17 @@ export default async (req) => {
           if (error) throw new Error(`Update failed (${tab}): ${error.message}`);
         }
       }
+
+      // Hide rows that vanished from the sheet (never delete).
+      if (plan.deactivations.length) {
+        const { error } = await supabase
+          .schema(SCHEMA)
+          .from('calendar_events')
+          .update({ status: 'Inactive', updated_at: now })
+          .in('id', plan.deactivations)
+          .eq('sync_source', SYNC_SOURCE);
+        if (error) throw new Error(`Deactivate failed: ${error.message}`);
+      }
       finalRows = [...finalRows.filter((r) => r.id !== null), ...insertedRows];
     }
 
@@ -163,13 +180,14 @@ export default async (req) => {
       skipped,
       possible_duplicates: findPossibleDuplicates(finalRows, ctx.timeZone),
       orphaned: plan.orphaned,
+      warnings: plan.warnings,
       dry_run: dryRun,
     };
 
     console.log(
       `schedule-sync${dryRun ? ' (dry run)' : ''}: inserted=${report.inserted} updated=${report.updated} ` +
       `unchanged=${report.unchanged} skipped=${skipped.length} orphaned=${plan.orphaned.length} ` +
-      `possible_duplicates=${report.possible_duplicates.length}`,
+      `possible_duplicates=${report.possible_duplicates.length} warnings=${plan.warnings.length}`,
     );
     return json(200, report);
   } catch (err) {
