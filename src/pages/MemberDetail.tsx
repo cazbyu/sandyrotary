@@ -5,6 +5,7 @@ import { Layout } from '../components/Layout';
 import { BottomNav } from '../components/BottomNav';
 import { AccordionSection } from '../components/AccordionSection';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 
 interface MemberData {
   id: string;
@@ -39,6 +40,7 @@ interface SocialMedia {
 
 export function MemberDetail() {
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
   const { id } = useParams<{ id: string }>();
   const [member, setMember] = useState<MemberData | null>(null);
   const [socialMedia, setSocialMedia] = useState<SocialMedia[]>([]);
@@ -81,9 +83,9 @@ export function MemberDetail() {
 
   const getStatusColor = (status: string) => {
     const statusLower = status?.toLowerCase() || '';
+    if (statusLower.includes('inactive')) return 'bg-gray-100 text-gray-600';
     if (statusLower.includes('active')) return 'bg-blue-100 text-blue-700';
     if (statusLower.includes('honorary')) return 'bg-purple-100 text-purple-700';
-    if (statusLower.includes('inactive')) return 'bg-gray-100 text-gray-600';
     return 'bg-gray-100 text-gray-600';
   };
 
@@ -115,7 +117,10 @@ export function MemberDetail() {
     );
   }
 
-  if (!member) {
+  // Inactive members are hidden from the list; a direct link shows only this note to non-admins.
+  const hiddenInactive = !!member && member.member_status === 'Inactive' && !isAdmin;
+
+  if (!member || hiddenInactive) {
     return (
       <Layout showHeader={false}>
         <div className="min-h-screen bg-[#F5F7FA]">
@@ -129,7 +134,9 @@ export function MemberDetail() {
             <h1 className="text-xl font-bold text-white">Member</h1>
           </div>
           <div className="p-6 text-center">
-            <p className="text-gray-600">Member not found</p>
+            <p className="text-gray-600">
+              {hiddenInactive ? 'This member is no longer active' : 'Member not found'}
+            </p>
           </div>
         </div>
         <BottomNav />

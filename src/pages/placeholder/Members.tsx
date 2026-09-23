@@ -45,6 +45,7 @@ export function Members() {
         .schema('p0012_rotary')
         .from('members')
         .select('id, first_name, last_name, profile_photo_url, member_status, member_title')
+        .in('member_status', ['Active', 'Honorary'])
         .order('last_name', { ascending: true })
         .order('first_name', { ascending: true });
 
