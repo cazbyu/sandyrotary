@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Users, UserPlus } from 'lucide-react';
+import { ArrowLeft, UserPlus, Lightbulb } from 'lucide-react';
 import { Layout } from '../../components/Layout';
 import { NavCard } from '../../components/NavCard';
 import { CardGrid } from '../../components/CardGrid';
@@ -22,8 +22,8 @@ export function ConnectGrowHub() {
         </div>
 
         <CardGrid>
-          <NavCard to="/members" icon={Users} label="Members" />
           <NavCard to="/refer" icon={UserPlus} label="Refer Someone" />
+          <NavCard to="/deposit-ideas" icon={Lightbulb} label="Notes, Ideas & Suggestions" />
         </CardGrid>
       </div>
       <BottomNav />

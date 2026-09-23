@@ -100,7 +100,7 @@ export function Selfies() {
             >
               <ArrowLeft className="w-6 h-6 text-white" />
             </button>
-            <h1 className="text-xl font-bold text-white flex-1">Service Selfies</h1>
+            <h1 className="text-xl font-bold text-white flex-1">Service Gallery</h1>
           </div>
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
@@ -124,7 +124,7 @@ export function Selfies() {
           >
             <ArrowLeft className="w-6 h-6 text-white" />
           </button>
-          <h1 className="text-xl font-bold text-white flex-1">Service Selfies</h1>
+          <h1 className="text-xl font-bold text-white flex-1">Service Gallery</h1>
         </div>
 
         <div className="p-4">

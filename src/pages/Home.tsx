@@ -3,7 +3,6 @@ import {
   User,
   Building2,
   Users,
-  Camera,
   CalendarPlus,
   UserCog,
   ListChecks,
@@ -92,7 +91,6 @@ export function Home() {
             <NavCard to="/profile-hub" icon={User} label="My Profile & Attendance" />
             <NavCard to="/club-hub" icon={Building2} label="Club Hub" />
             <NavCard to="/connect-grow" icon={Users} label="Connect & Grow" />
-            <NavCard to="/service-gallery" icon={Camera} label="Service Gallery" />
           </CardGrid>
         )}
 

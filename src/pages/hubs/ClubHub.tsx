@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Info, BookOpen, Calendar } from 'lucide-react';
+import { ArrowLeft, Info, Megaphone, Camera } from 'lucide-react';
 import { Layout } from '../../components/Layout';
 import { NavCard } from '../../components/NavCard';
 import { CardGrid } from '../../components/CardGrid';
@@ -23,8 +23,8 @@ export function ClubHub() {
 
         <CardGrid>
           <NavCard to="/club-info" icon={Info} label="Club Info" />
-          <NavCard to="/stories-bulletins" icon={BookOpen} label="Stories & Bulletins" />
-          <NavCard to="/calendar" icon={Calendar} label="Calendar" />
+          <NavCard to="/bulletins" icon={Megaphone} label="Announcements" />
+          <NavCard to="/selfies" icon={Camera} label="Service Gallery" />
         </CardGrid>
       </div>
       <BottomNav />

@@ -39,8 +39,6 @@ import { Fundraiser } from './pages/placeholder/admin/Fundraiser';
 import { ProfileHub } from './pages/hubs/ProfileHub';
 import { ClubHub } from './pages/hubs/ClubHub';
 import { ConnectGrowHub } from './pages/hubs/ConnectGrowHub';
-import { ServiceGalleryHub } from './pages/hubs/ServiceGalleryHub';
-import { StoriesBulletinsHub } from './pages/hubs/StoriesBulletinsHub';
 import { FundraiserDetail } from './pages/FundraiserDetail';
 import { Scorecard } from './pages/Scorecard';
 
@@ -58,8 +56,8 @@ function App() {
           <Route path="/profile-hub" element={<ProtectedRoute><ProfileHub /></ProtectedRoute>} />
           <Route path="/club-hub" element={<ProtectedRoute><ClubHub /></ProtectedRoute>} />
           <Route path="/connect-grow" element={<ProtectedRoute><ConnectGrowHub /></ProtectedRoute>} />
-          <Route path="/service-gallery" element={<ProtectedRoute><ServiceGalleryHub /></ProtectedRoute>} />
-          <Route path="/stories-bulletins" element={<ProtectedRoute><StoriesBulletinsHub /></ProtectedRoute>} />
+          <Route path="/service-gallery" element={<Navigate to="/club-hub" replace />} />
+          <Route path="/stories-bulletins" element={<Navigate to="/club-hub" replace />} />
           <Route path="/suggestions" element={<Navigate to="/deposit-ideas" replace />} />
           <Route path="/my-data" element={<ProtectedRoute><MyData /></ProtectedRoute>} />
           <Route path="/members" element={<ProtectedRoute><Members /></ProtectedRoute>} />
